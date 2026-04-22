@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const WireguardConfigPath = "/etc/wireguard"
+const WireguardConfigPath = "/tmp/wireguard"
 
 type WireguardProvider struct {
 	mu          sync.Mutex
