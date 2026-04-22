@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -133,6 +134,27 @@ func main() {
 	} else {
 		if cfg.WIREGUARD_PRIVATE_KEY != "" && cfg.VPNServiceProvider == config.ProviderMullvad {
 			log.Log("info", "using Mullvad WireGuard")
+
+			regions := make([]vpn.VPNRegion, 0)
+			if len(cfg.SERVER_COUNTRIES) > 0 {
+				for _, country := range strings.Split(cfg.SERVER_COUNTRIES, ",") {
+					country = strings.TrimSpace(country)
+					if country != "" {
+						regions = append(regions, vpn.VPNRegion{Provider: "wireguard", Country: country})
+					}
+				}
+			}
+			if len(regions) == 0 {
+				regions = append(regions, vpn.VPNRegion{Provider: "wireguard", Country: "ca"})
+			}
+
+			wgProvider := vpn.NewWireguardEnvProvider(
+				cfg.WIREGUARD_PRIVATE_KEY,
+				cfg.WIREGUARD_ADDRESSES,
+				"",
+				"",
+			)
+			rotator, _ = vpn.NewRotatorWithProvider(regions, &vpn.RotatorConfig{}, wgProvider)
 		}
 
 		err := rotator.Connect()

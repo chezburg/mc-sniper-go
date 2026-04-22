@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Kqzz/MCsniperGO/log"
 	"github.com/Kqzz/MCsniperGO/pkg/config"
@@ -118,34 +119,59 @@ func testVPNConnections(rotator *vpn.Rotator) bool {
 	cfg := config.Load()
 
 	if rotator == nil {
-		vpnRegions := cfg.GetVPNRegions()
-		if len(vpnRegions) == 0 {
-			fmt.Println("[DRY-TEST] VPN: no regions configured")
-			vpnConfigured = false
-		} else {
-			rotatorCfg := &vpn.RotatorConfig{
-				MaxRequestsPerRegion:   cfg.VPN_MAX_REQUESTS_PER_REGION,
-				MinRotationInterval:  cfg.VPN_MIN_ROTATION_INTERVAL,
-				DetectOn429:         cfg.VPN_DETECT_ON_429,
-				Predictive:          cfg.VPN_PREDICTIVE,
-				FallbackToProxies:   cfg.VPN_FALLBACK_TO_PROXIES,
-				MaxRateLimitHits:    cfg.VPN_MAX_RATELIMIT_HITS,
-				PredictiveThreshold: cfg.VPN_PREDICTIVE_THRESHOLD,
-			}
+		if cfg.WIREGUARD_PRIVATE_KEY != "" && cfg.VPNServiceProvider == config.ProviderMullvad {
+			fmt.Println("[DRY-TEST] VPN: using WireGuard")
 
-			regions := make([]vpn.VPNRegion, len(vpnRegions))
-			for i, r := range vpnRegions {
-				regions[i] = vpn.VPNRegion{
-					Provider: r.Provider,
-					Country:  r.Country,
+			regions := make([]vpn.VPNRegion, 0)
+			if len(cfg.SERVER_COUNTRIES) > 0 {
+				for _, country := range strings.Split(cfg.SERVER_COUNTRIES, ",") {
+					country = strings.TrimSpace(country)
+					if country != "" {
+						regions = append(regions, vpn.VPNRegion{Provider: "wireguard", Country: country})
+					}
 				}
 			}
+			if len(regions) == 0 {
+				regions = append(regions, vpn.VPNRegion{Provider: "wireguard", Country: "ca"})
+			}
 
-			var err error
-			rotator, err = vpn.NewRotator(regions, rotatorCfg)
-			if err != nil {
-				fmt.Printf("[DRY-TEST] VPN: failed to create rotator: %v\n", err)
-				return false
+			wgProvider := vpn.NewWireguardEnvProvider(
+				cfg.WIREGUARD_PRIVATE_KEY,
+				cfg.WIREGUARD_ADDRESSES,
+				"",
+				"",
+			)
+			rotator, _ = vpn.NewRotatorWithProvider(regions, &vpn.RotatorConfig{}, wgProvider)
+		} else {
+			vpnRegions := cfg.GetVPNRegions()
+			if len(vpnRegions) == 0 {
+				fmt.Println("[DRY-TEST] VPN: no regions configured")
+				vpnConfigured = false
+			} else {
+				rotatorCfg := &vpn.RotatorConfig{
+					MaxRequestsPerRegion:   cfg.VPN_MAX_REQUESTS_PER_REGION,
+					MinRotationInterval:  cfg.VPN_MIN_ROTATION_INTERVAL,
+					DetectOn429:         cfg.VPN_DETECT_ON_429,
+					Predictive:          cfg.VPN_PREDICTIVE,
+					FallbackToProxies:   cfg.VPN_FALLBACK_TO_PROXIES,
+					MaxRateLimitHits:    cfg.VPN_MAX_RATELIMIT_HITS,
+					PredictiveThreshold: cfg.VPN_PREDICTIVE_THRESHOLD,
+				}
+
+				regions := make([]vpn.VPNRegion, len(vpnRegions))
+				for i, r := range vpnRegions {
+					regions[i] = vpn.VPNRegion{
+						Provider: r.Provider,
+						Country:  r.Country,
+					}
+				}
+
+				var err error
+				rotator, err = vpn.NewRotator(regions, rotatorCfg)
+				if err != nil {
+					fmt.Printf("[DRY-TEST] VPN: failed to create rotator: %v\n", err)
+					return false
+				}
 			}
 		}
 	}
