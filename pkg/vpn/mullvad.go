@@ -21,6 +21,32 @@ func (p *MullvadProvider) Name() string {
 	return "mullvad"
 }
 
+func (p *MullvadProvider) Authenticate(accountNumber string) error {
+	if !hasMullvadCLI() {
+		return fmt.Errorf("mullvad-vpn CLI not found. Install from mullvad.net")
+	}
+
+	if accountNumber == "" {
+		cmd := exec.Command("mullvad", "account", "get")
+		_, err := cmd.Output()
+		if err == nil {
+			return nil
+		}
+		return fmt.Errorf("mullvad account not set. Set with: mullvad account set ACCOUNT_NUMBER")
+	}
+
+	cmd := exec.Command("mullvad", "account", "set", accountNumber)
+	_, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("mullvad auth failed: %s", string(exitErr.Stderr))
+		}
+		return fmt.Errorf("mullvad auth failed: %v", err)
+	}
+
+	return nil
+}
+
 func (p *MullvadProvider) Connect(country string) error {
 	if !hasMullvadCLI() {
 		return fmt.Errorf("mullvad-vpn CLI not found. Install from mullvad.net")

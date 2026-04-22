@@ -111,6 +111,30 @@ func main() {
 			log.Log("info", "loaded %d proxies (fallback mode)", len(proxies))
 		}
 	} else {
+		auth, authErr := vpn.LoadAuth("vpn_auth.txt")
+		if authErr != nil {
+			log.Log("warn", "VPN auth not configured, using system CLI auth")
+		} else {
+			if auth.MullvadAccount != "" {
+				log.Log("info", "authenticating Mullvad...")
+				mullvad := vpn.NewMullvadProvider()
+				if err := mullvad.Authenticate(auth.MullvadAccount); err != nil {
+					log.Log("err", "Mullvad auth failed: %v", err)
+				} else {
+					log.Log("info", "Mullvad authenticated")
+				}
+			}
+			if auth.ProtonEmail != "" && auth.ProtonPassword != "" {
+				log.Log("info", "authenticating Proton VPN...")
+				proton := vpn.NewProtonProvider()
+				if err := proton.Authenticate(auth.ProtonEmail, auth.ProtonPassword); err != nil {
+					log.Log("err", "Proton auth failed: %v", err)
+				} else {
+					log.Log("info", "Proton VPN authenticated")
+				}
+			}
+		}
+
 		err = rotator.Connect()
 		if err != nil {
 			log.Log("err", "failed to connect to VPN: %v", err)

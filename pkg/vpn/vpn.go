@@ -3,6 +3,7 @@ package vpn
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 )
@@ -11,11 +12,18 @@ var (
 	ErrNotConnected = errors.New("not connected to VPN")
 	ErrInvalidRegion = errors.New("invalid region format")
 	ErrConnectFail  = errors.New("failed to connect to VPN")
+	ErrAuthFailed  = errors.New("authentication failed")
 )
 
 type Region struct {
 	Provider string
 	Country  string
+}
+
+type VPNAuth struct {
+	MullvadAccount string
+	ProtonEmail  string
+	ProtonPassword string
 }
 
 type Provider interface {
@@ -125,4 +133,42 @@ func IsConnected(mgr *VPNManager) bool {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 	return mgr.connected
+}
+
+func LoadAuth(path string) (*VPNAuth, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("auth file not found: %v", err)
+	}
+
+	auth := &VPNAuth{}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "mullvad_account":
+			auth.MullvadAccount = value
+		case "proton_email":
+			auth.ProtonEmail = value
+		case "proton_password":
+			auth.ProtonPassword = value
+		}
+	}
+
+	if auth.MullvadAccount == "" && auth.ProtonEmail == "" && auth.ProtonPassword == "" {
+		return nil, fmt.Errorf("no VPN credentials found")
+	}
+
+	return auth, nil
 }

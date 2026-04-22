@@ -21,6 +21,33 @@ func (p *ProtonProvider) Name() string {
 	return "proton"
 }
 
+func (p *ProtonProvider) Authenticate(email, password string) error {
+	if !hasProtonCLI() {
+		return fmt.Errorf("protonvpn CLI not found. Install from protonvpn.com")
+	}
+
+	if email == "" || password == "" {
+		cmd := exec.Command("protonvpn", "status")
+		_, err := cmd.Output()
+		if err == nil {
+			return nil
+		}
+		return fmt.Errorf("protonvpn not logged in. Run: protonvpn login")
+	}
+
+	cmd := exec.Command("protonvpn", "login", "-n", email)
+	cmd.Stdin = strings.NewReader(password + "\n")
+	_, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("protonvpn auth failed: %s", string(exitErr.Stderr))
+		}
+		return fmt.Errorf("protonvpn auth failed: %v", err)
+	}
+
+	return nil
+}
+
 func (p *ProtonProvider) Connect(country string) error {
 	if !hasProtonCLI() {
 		return fmt.Errorf("protonvpn CLI not found. Install from protonvpn.com")
