@@ -47,7 +47,7 @@ func (p *WireguardEnvProvider) Connect(country string) error {
 		return fmt.Errorf("wg-quick not found. Install wireguard-tools")
 	}
 
-	configName := fmt.Sprintf("wg-%d", time.Now().UnixNano())
+	configName := "wg0"
 	configPath := filepath.Join(WireguardConfigPath, configName+".conf")
 
 	if err := os.MkdirAll(WireguardConfigPath, 0755); err != nil {
