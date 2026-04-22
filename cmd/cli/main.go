@@ -11,8 +11,8 @@ import (
 	"github.com/Kqzz/MCsniperGO/claimer"
 	"github.com/Kqzz/MCsniperGO/cmd/cli/droptime"
 	"github.com/Kqzz/MCsniperGO/log"
+	"github.com/Kqzz/MCsniperGO/pkg/config"
 	"github.com/Kqzz/MCsniperGO/pkg/mc"
-	"github.com/Kqzz/MCsniperGO/pkg/parser"
 	"github.com/Kqzz/MCsniperGO/pkg/vpn"
 )
 
@@ -47,21 +47,19 @@ func isFlagPassed(names ...string) bool {
 }
 
 func statusBar(startTime time.Time) {
-	fmt.Print("\x1B7")     // Save the cursor position
-	fmt.Print("\x1B[2K")   // Erase the entire line - breaks smth else so idk
-	fmt.Print("\x1B[0J")   // Erase from cursor to end of screen
-	fmt.Print("\x1B[?47h") // Save screen
-	// fmt.Print("\x1B[1J")   // Erase from cursor to beginning of screen
-	fmt.Print("\x1B[?47l") // Restore screen
+	fmt.Print("\x1B7")
+	fmt.Print("\x1B[2K")
+	fmt.Print("\x1B[0J")
+	fmt.Print("\x1B[?47h")
+	fmt.Print("\x1B[?47l")
 
-	fmt.Printf("\x1B[%d;%dH", 0, 0) // move cursor to row #, col #
+	fmt.Printf("\x1B[%d;%dH", 0, 0)
 
 	elapsed := time.Since(startTime).Seconds()
-
 	requestsPerSecond := float64(claimer.Stats.Total) / elapsed
 
 	fmt.Printf("[RPS: %.2f | DUPLICATE: %d | NOT_ALLOWED: %d | TOO_MANY_REQUESTS: %d]     ", requestsPerSecond, claimer.Stats.Duplicate, claimer.Stats.NotAllowed, claimer.Stats.TooManyRequests)
-	fmt.Print("\x1B8") // Restore the cursor position util new size is calculated
+	fmt.Print("\x1B8")
 }
 
 func main() {
@@ -72,8 +70,8 @@ func main() {
 	flag.BoolVar(&autoDroptimeMode, "auto-droptime", false, "auto snipe 3-char usernames from 3name.xyz")
 	flag.BoolVar(&autoDroptimeMode, "3", false, "auto snipe 3-char usernames from 3name.xyz")
 	flag.BoolVar(&disableBar, "disable-bar", false, "disables status bar")
-	flag.BoolVar(&dryTestMode, "dry-test", false, "test ms.txt accounts and VPN without sniping")
-	flag.BoolVar(&dryTestMode, "d", false, "test ms.txt accounts and VPN without sniping")
+	flag.BoolVar(&dryTestMode, "dry-test", false, "test accounts and VPN without sniping")
+	flag.BoolVar(&dryTestMode, "d", false, "test accounts and VPN without sniping")
 	if isFlagPassed("disable-bar") {
 		disableBar = true
 	}
@@ -92,13 +90,32 @@ func main() {
 
 	log.Log("", log.GetHeader())
 
+	cfg := config.Load()
 	var rotator *vpn.Rotator
 	var proxies []string
 
-	vpnRegions, err := vpn.LoadRegions("vpn.txt")
-	if err == nil && len(vpnRegions) > 0 {
-		vpnConfig, _ := vpn.LoadConfig("vpn_config.txt")
-		rotator, err = vpn.NewRotator(vpnRegions, vpnConfig)
+	vpnRegions := cfg.GetVPNRegions()
+	if len(vpnRegions) > 0 {
+		rotatorCfg := &vpn.RotatorConfig{
+			MaxRequestsPerRegion:  cfg.VPN_MAX_REQUESTS_PER_REGION,
+			MinRotationInterval:   cfg.VPN_MIN_ROTATION_INTERVAL,
+			DetectOn429:         cfg.VPN_DETECT_ON_429,
+			Predictive:           cfg.VPN_PREDICTIVE,
+			FallbackToProxies:    cfg.VPN_FALLBACK_TO_PROXIES,
+			MaxRateLimitHits:     cfg.VPN_MAX_RATELIMIT_HITS,
+			PredictiveThreshold:  cfg.VPN_PREDICTIVE_THRESHOLD,
+		}
+
+		regions := make([]vpn.VPNRegion, len(vpnRegions))
+		for i, r := range vpnRegions {
+			regions[i] = vpn.VPNRegion{
+				Provider: r.Provider,
+				Country:  r.Country,
+			}
+		}
+
+		var err error
+		rotator, err = vpn.NewRotator(regions, rotatorCfg)
 		if err == nil && rotator != nil {
 			log.Log("info", "loaded %d VPN regions", len(vpnRegions))
 		} else {
@@ -107,49 +124,32 @@ func main() {
 	}
 
 	if rotator == nil {
-		proxies, err = parser.ReadLines("proxies.txt")
-		if err != nil {
-			log.Log("err", "failed to load proxies: %v", err)
-		} else {
+		proxies = cfg.GetProxies()
+		if len(proxies) > 0 {
 			log.Log("info", "loaded %d proxies (fallback mode)", len(proxies))
+		} else {
+			log.Log("info", "no VPN or proxies configured")
 		}
 	} else {
-		auth, authErr := vpn.LoadAuth("vpn_auth.txt")
-		if authErr != nil {
-			log.Log("warn", "VPN auth not configured, using system CLI auth")
-		} else {
-			if auth.MullvadAccount != "" {
-				log.Log("info", "authenticating Mullvad...")
-				mullvad := vpn.NewMullvadProvider()
-				if err := mullvad.Authenticate(auth.MullvadAccount); err != nil {
-					log.Log("err", "Mullvad auth failed: %v", err)
-				} else {
-					log.Log("info", "Mullvad authenticated")
-				}
-			}
-			if auth.ProtonEmail != "" && auth.ProtonPassword != "" {
-				log.Log("info", "authenticating Proton VPN...")
-				proton := vpn.NewProtonProvider()
-				if err := proton.Authenticate(auth.ProtonEmail, auth.ProtonPassword); err != nil {
-					log.Log("err", "Proton auth failed: %v", err)
-				} else {
-					log.Log("info", "Proton VPN authenticated")
-				}
-			}
+		if cfg.WIREGUARD_PRIVATE_KEY != "" && cfg.VPNServiceProvider == config.ProviderMullvad {
+			log.Log("info", "using Mullvad WireGuard")
 		}
 
-		err = rotator.Connect()
+		err := rotator.Connect()
 		if err != nil {
 			log.Log("err", "failed to connect to VPN: %v", err)
 			rotator = nil
-			proxies, _ = parser.ReadLines("proxies.txt")
+			proxies = cfg.GetProxies()
 			log.Log("info", "falling back to proxies")
 		} else {
 			log.Log("info", "connected to VPN: %s", rotator.CurrentRegion())
 		}
 	}
 
-	accounts, err := getAccounts("gc.txt", "gp.txt", "ms.txt")
+	gcLines := cfg.GetGCAccounts()
+	gpLines := cfg.GetGPAccounts()
+	msLines := cfg.GetMSAccounts()
+	accounts, err := getAccountsFromLines(gcLines, gpLines, msLines)
 
 	if err != nil {
 		log.Log("err", "fatal: %v", err)

@@ -43,8 +43,26 @@ func LoadRegions(path string) ([]VPNRegion, error) {
 		return nil, err
 	}
 
+	return parseRegions(string(data)), nil
+}
+
+func LoadRegionsEnv(regionsStr string) ([]VPNRegion, error) {
+	if regionsStr == "" {
+		return nil, fmt.Errorf("no regions provided")
+	}
+	return parseRegions(regionsStr), nil
+}
+
+func LoadRegionsFromList(regions []VPNRegion) ([]VPNRegion, error) {
+	if len(regions) == 0 {
+		return nil, fmt.Errorf("no regions provided")
+	}
+	return regions, nil
+}
+
+func parseRegions(data string) []VPNRegion {
 	var regions []VPNRegion
-	for _, line := range strings.Split(string(data), "\n") {
+	for _, line := range strings.Split(data, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -60,8 +78,7 @@ func LoadRegions(path string) ([]VPNRegion, error) {
 			Country:  region.Country,
 		})
 	}
-
-	return regions, nil
+	return regions
 }
 
 func isWireguardProvider(provider string) bool {
@@ -83,20 +100,32 @@ func NewRotator(regions []VPNRegion, config *RotatorConfig) (*Rotator, error) {
 	for _, region := range regions {
 		providerKey := region.Provider
 		if _, ok := r.providers[providerKey]; !ok {
-			if isWireguardProvider(providerKey) {
-				mgr, err := NewVPNManager("wireguard")
-				if err != nil {
-					continue
-				}
-				r.providers[providerKey] = mgr
-			} else {
-				mgr, err := NewVPNManager(region.Provider)
-				if err != nil {
-					continue
-				}
-				r.providers[providerKey] = mgr
+			mgr, err := NewVPNManager(region.Provider)
+			if err != nil {
+				continue
 			}
+			r.providers[providerKey] = mgr
 		}
+	}
+
+	return r, nil
+}
+
+func NewRotatorWithProvider(regions []VPNRegion, config *RotatorConfig, provider Provider) (*Rotator, error) {
+	if config == nil {
+		config = defaultRotatorConfig()
+	}
+
+	r := &Rotator{
+		regions:        regions,
+		predictedLimit: config.MaxRequestsPerRegion,
+		config:        config,
+		providers:    make(map[string]*VPNManager),
+	}
+
+	if len(regions) > 0 {
+		providerKey := regions[0].Provider
+		r.providers[providerKey] = &VPNManager{provider: provider}
 	}
 
 	return r, nil
@@ -251,6 +280,13 @@ func LoadConfig(path string) (*RotatorConfig, error) {
 	}
 
 	return parseRotatorConfig(string(data)), nil
+}
+
+func LoadRotatorConfigEnv(cfg *RotatorConfig) *RotatorConfig {
+	if cfg == nil {
+		cfg = defaultRotatorConfig()
+	}
+	return cfg
 }
 
 func parseRotatorConfig(data string) *RotatorConfig {

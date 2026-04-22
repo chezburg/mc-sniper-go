@@ -174,3 +174,40 @@ func LoadAuth(path string) (*VPNAuth, error) {
 
 	return auth, nil
 }
+
+func LoadAuthEnv(mullvadAccount, mullvadAccountKey, protonEmail, protonPassword string) (*VPNAuth, error) {
+	auth := &VPNAuth{}
+
+	if mullvadAccountKey != "" {
+		auth.MullvadAccount = mullvadAccountKey
+	} else if mullvadAccount != "" {
+		auth.MullvadAccount = mullvadAccount
+	}
+
+	if protonEmail != "" {
+		auth.ProtonEmail = protonEmail
+	}
+	if protonPassword != "" {
+		auth.ProtonPassword = protonPassword
+	}
+
+	if auth.MullvadAccount == "" && auth.ProtonEmail == "" {
+		return nil, fmt.Errorf("no VPN credentials found")
+	}
+
+	return auth, nil
+}
+
+func LoadVPNAuthFromEnv(privateKey, address string) (*VPNAuth, error) {
+	auth := &VPNAuth{}
+
+	if privateKey != "" {
+		auth.MullvadAccount = privateKey
+	}
+
+	if auth.MullvadAccount == "" {
+		return nil, fmt.Errorf("no VPN credentials found")
+	}
+
+	return auth, nil
+}

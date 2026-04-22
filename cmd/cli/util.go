@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/Kqzz/MCsniperGO/log"
+	"github.com/Kqzz/MCsniperGO/pkg/config"
 	"github.com/Kqzz/MCsniperGO/pkg/mc"
 	"github.com/Kqzz/MCsniperGO/pkg/parser"
 	"github.com/Kqzz/MCsniperGO/pkg/vpn"
@@ -15,7 +15,15 @@ func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string)
 	gamepassLines, _ := parser.ReadLines(gamepassPath)
 	microsoftLines, _ := parser.ReadLines(microsoftPath)
 
-	gcs, parseErrors := parser.ParseAccounts(giftCodeLines, mc.MsPr)
+	return parseAccountsFromLines(giftCodeLines, gamepassLines, microsoftLines)
+}
+
+func getAccountsFromLines(gcLines, gpLines, msLines []string) ([]*mc.MCaccount, error) {
+	return parseAccountsFromLines(gcLines, gpLines, msLines)
+}
+
+func parseAccountsFromLines(gcLines, gpLines, msLines []string) ([]*mc.MCaccount, error) {
+	gcs, parseErrors := parser.ParseAccounts(gcLines, mc.MsPr)
 
 	for _, er := range parseErrors {
 		if er == nil {
@@ -23,7 +31,7 @@ func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string)
 		}
 		log.Log("err", "%v", er)
 	}
-	microsofts, msParseErrors := parser.ParseAccounts(microsoftLines, mc.Ms)
+	microsofts, msParseErrors := parser.ParseAccounts(msLines, mc.Ms)
 
 	for _, er := range msParseErrors {
 		if er == nil {
@@ -32,7 +40,7 @@ func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string)
 		log.Log("err", "%v", er)
 	}
 
-	gamepasses, gpParseErrors := parser.ParseAccounts(gamepassLines, mc.MsGp)
+	gamepasses, gpParseErrors := parser.ParseAccounts(gpLines, mc.MsGp)
 
 	for _, er := range gpParseErrors {
 		if er == nil {
@@ -45,7 +53,7 @@ func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string)
 	accounts = append(accounts, gamepasses...)
 
 	if len(accounts) == 0 {
-		return accounts, fmt.Errorf("no accounts found in: gc.txt, ms.txt, gp.txt")
+		return accounts, fmt.Errorf("no accounts found")
 	}
 
 	return accounts, nil
@@ -107,14 +115,34 @@ func testAccounts(accounts []*mc.MCaccount) bool {
 func testVPNConnections(rotator *vpn.Rotator) bool {
 	vpnConfigured := true
 
+	cfg := config.Load()
+
 	if rotator == nil {
-		vpnRegions, err := vpn.LoadRegions("vpn.txt")
-		if err != nil || len(vpnRegions) == 0 {
+		vpnRegions := cfg.GetVPNRegions()
+		if len(vpnRegions) == 0 {
 			fmt.Println("[DRY-TEST] VPN: no regions configured")
 			vpnConfigured = false
 		} else {
-			vpnConfig, _ := vpn.LoadConfig("vpn_config.txt")
-			rotator, err = vpn.NewRotator(vpnRegions, vpnConfig)
+			rotatorCfg := &vpn.RotatorConfig{
+				MaxRequestsPerRegion:   cfg.VPN_MAX_REQUESTS_PER_REGION,
+				MinRotationInterval:  cfg.VPN_MIN_ROTATION_INTERVAL,
+				DetectOn429:         cfg.VPN_DETECT_ON_429,
+				Predictive:          cfg.VPN_PREDICTIVE,
+				FallbackToProxies:   cfg.VPN_FALLBACK_TO_PROXIES,
+				MaxRateLimitHits:    cfg.VPN_MAX_RATELIMIT_HITS,
+				PredictiveThreshold: cfg.VPN_PREDICTIVE_THRESHOLD,
+			}
+
+			regions := make([]vpn.VPNRegion, len(vpnRegions))
+			for i, r := range vpnRegions {
+				regions[i] = vpn.VPNRegion{
+					Provider: r.Provider,
+					Country:  r.Country,
+				}
+			}
+
+			var err error
+			rotator, err = vpn.NewRotator(regions, rotatorCfg)
 			if err != nil {
 				fmt.Printf("[DRY-TEST] VPN: failed to create rotator: %v\n", err)
 				return false
@@ -122,23 +150,8 @@ func testVPNConnections(rotator *vpn.Rotator) bool {
 		}
 	}
 
-	vpnAuth, authErr := vpn.LoadAuth("vpn_auth.txt")
-	if authErr == nil && vpnAuth.MullvadAccount != "" {
-		mullvad := vpn.NewMullvadProvider()
-		if err := mullvad.Authenticate(vpnAuth.MullvadAccount); err != nil {
-			fmt.Printf("[DRY-TEST] Mullvad auth: FAIL: %v\n", err)
-		} else {
-			fmt.Println("[DRY-TEST] Mullvad auth: PASS")
-		}
-	}
-
-	if authErr == nil && vpnAuth.ProtonEmail != "" && vpnAuth.ProtonPassword != "" {
-		proton := vpn.NewProtonProvider()
-		if err := proton.Authenticate(vpnAuth.ProtonEmail, vpnAuth.ProtonPassword); err != nil {
-			fmt.Printf("[DRY-TEST] Proton auth: FAIL: %v\n", err)
-		} else {
-			fmt.Println("[DRY-TEST] Proton auth: PASS")
-		}
+	if cfg.WIREGUARD_PRIVATE_KEY != "" {
+		fmt.Println("[DRY-TEST] VPN: WireGuard key configured")
 	}
 
 	if rotator == nil {
@@ -161,10 +174,6 @@ func testVPNConnections(rotator *vpn.Rotator) bool {
 	} else {
 		fmt.Println("[DRY-TEST] VPN connect: PASS")
 	}
-
-	shouldRotate := rotator.ShouldRotate()
-	rotator.Rotate()
-	fmt.Printf("[DRY-TEST] VPN rotation: shouldRotate=%v, rotated\n", shouldRotate)
 
 	rotator.Disconnect()
 	fmt.Println("[DRY-TEST] VPN: PASS")

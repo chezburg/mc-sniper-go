@@ -8,8 +8,33 @@ services:
     container_name: mcsnipergo
     cap_add:
       - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
     volumes:
       - ./mullvad:/etc/wireguard:ro
     restart: "no"
     environment:
       - TZ=UTC
+      - VPN_SERVICE_PROVIDER=${VPN_SERVICE_PROVIDER:-mullvad}
+      - VPN_TYPE=${VPN_TYPE:-wireguard}
+      - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY:-}
+      - WIREGUARD_ADDRESSES=${WIREGUARD_ADDRESSES:-}
+      - SERVER_COUNTRIES=${SERVER_COUNTRIES:-Canada}
+      - SERVER_REGIONS=${SERVER_REGIONS:-}
+      - SERVER_CITIES=${SERVER_CITIES:-Toronto,Montreal,Vancouver,Calgary}
+      - SERVER_HOSTNAMES=${SERVER_HOSTNAMES:-}
+      - OPENVPN_USER=${OPENVPN_USER:-}
+      - OPENVPN_PASSWORD=${OPENVPN_PASSWORD:-}
+      - PROXIES=${PROXIES:-}
+      - GC_ACCOUNTS=${GC_ACCOUNTS:-}
+      - GP_ACCOUNTS=${GP_ACCOUNTS:-}
+      - MS_ACCOUNTS=${MS_ACCOUNTS:-}
+      - VPN_MAX_REQUESTS_PER_REGION=${VPN_MAX_REQUESTS_PER_REGION:-25}
+      - VPN_MIN_ROTATION_INTERVAL=${VPN_MIN_ROTATION_INTERVAL:-5s}
+      - VPN_DETECT_ON_429=${VPN_DETECT_ON_429:-true}
+      - VPN_PREDICTIVE=${VPN_PREDICTIVE:-true}
+      - VPN_FALLBACK_TO_PROXIES=${VPN_FALLBACK_TO_PROXIES:-true}
+      - VPN_MAX_RATELIMIT_HITS=${VPN_MAX_RATELIMIT_HITS:-2}
+      - VPN_PREDICTIVE_THRESHOLD=${VPN_PREDICTIVE_THRESHOLD:-80}
+    env_file:
+      - .env

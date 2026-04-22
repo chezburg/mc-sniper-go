@@ -1,10 +1,6 @@
 accounts.txt
-gc.txt
-ms.txt
-gp.txt
-proxies.txt
-vpn_auth.txt
 mullvad/
 
 *.exe
 dist/
+.env

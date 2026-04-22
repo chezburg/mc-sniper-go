@@ -23,7 +23,6 @@ WORKDIR /app
 
 COPY --from=builder /app/mcsnipergo .
 COPY startup.sh .
-COPY vpn.txt vpn_config.txt ./
 
 RUN chmod +x mcsnipergo startup.sh
 
