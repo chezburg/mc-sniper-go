@@ -1,9 +1,12 @@
-mullvad:us
-mullvad:uk
-mullvad:de
-mullvad:jp
-mullvad:au
-mullvad:ca
-proton:nl
-proton:jp
-proton:sg
+# WireGuard configs for Docker deployment
+# Format: wireguard:config_name (without .conf extension)
+# Configs should be mounted at /etc/wireguard/
+
+wireguard:ca-tor-wg-001
+wireguard:ca-mtr-wg-001
+wireguard:ca-van-wg-001
+wireguard:ca-yyc-wg-001
+wireguard:ca-tor-wg-002
+wireguard:ca-mtr-wg-002
+wireguard:ca-van-wg-002
+wireguard:ca-yyc-wg-002

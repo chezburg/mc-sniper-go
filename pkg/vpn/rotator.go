@@ -64,6 +64,10 @@ func LoadRegions(path string) ([]VPNRegion, error) {
 	return regions, nil
 }
 
+func isWireguardProvider(provider string) bool {
+	return provider == "wireguard"
+}
+
 func NewRotator(regions []VPNRegion, config *RotatorConfig) (*Rotator, error) {
 	if config == nil {
 		config = defaultRotatorConfig()
@@ -79,11 +83,19 @@ func NewRotator(regions []VPNRegion, config *RotatorConfig) (*Rotator, error) {
 	for _, region := range regions {
 		providerKey := region.Provider
 		if _, ok := r.providers[providerKey]; !ok {
-			mgr, err := NewVPNManager(region.Provider)
-			if err != nil {
-				continue
+			if isWireguardProvider(providerKey) {
+				mgr, err := NewVPNManager("wireguard")
+				if err != nil {
+					continue
+				}
+				r.providers[providerKey] = mgr
+			} else {
+				mgr, err := NewVPNManager(region.Provider)
+				if err != nil {
+					continue
+				}
+				r.providers[providerKey] = mgr
 			}
-			r.providers[providerKey] = mgr
 		}
 	}
 

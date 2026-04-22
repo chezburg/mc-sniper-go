@@ -66,6 +66,8 @@ func NewVPNManager(providerName string) (*VPNManager, error) {
 		p = NewMullvadProvider()
 	case "proton":
 		p = NewProtonProvider()
+	case "wireguard":
+		p = NewWireguardProvider()
 	default:
 		return nil, fmt.Errorf("unsupported VPN provider: %s", providerName)
 	}
