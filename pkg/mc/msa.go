@@ -135,7 +135,7 @@ func (account *MCaccount) MicrosoftAuthenticate(proxy string) error {
 	urlPostMatches := urlPostRegex.FindAllSubmatch(respBytes, -1)
 
 	if len(valueMatches) == 0 || len(urlPostMatches) == 0 {
-		return errors.New("failed to parse login page: expected form fields not found (page may have changed or requires captcha)")
+		return fmt.Errorf("failed to parse login page: expected form fields not found (HTTP %d, bodylen=%d, page may require captcha or session expired)", resp.StatusCode, len(respBytes))
 	}
 
 	value := string(valueMatches[0][1])
