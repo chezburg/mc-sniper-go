@@ -10,6 +10,6 @@ services:
       - NET_ADMIN
     volumes:
       - ./mullvad:/etc/wireguard:ro
-    restart: unless-stopped
+    restart: "no"
     environment:
       - TZ=UTC

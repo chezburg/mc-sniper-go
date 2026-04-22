@@ -22,8 +22,9 @@ RUN apt-get update && \
 WORKDIR /app
 
 COPY --from=builder /app/mcsnipergo .
+COPY startup.sh .
 COPY vpn.txt vpn_config.txt ./
 
-RUN chmod +x mcsnipergo
+RUN chmod +x mcsnipergo startup.sh
 
-ENTRYPOINT ["./mcsnipergo"]
+ENTRYPOINT ["./startup.sh"]

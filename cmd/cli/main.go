@@ -163,7 +163,10 @@ func main() {
 	}
 
 	if dryTestMode {
-		testVPNAndAccounts(accounts, rotator)
+		ok := testVPNAndAccounts(accounts, rotator)
+		if !ok {
+			os.Exit(1)
+		}
 		return
 	}
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/Kqzz/MCsniperGO/log"
 	"github.com/Kqzz/MCsniperGO/pkg/mc"
@@ -50,16 +51,33 @@ func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string)
 	return accounts, nil
 }
 
-func testVPNAndAccounts(accounts []*mc.MCaccount, rotator *vpn.Rotator) {
-	testVPNConnections(rotator)
-	testAccounts(accounts)
+func testVPNAndAccounts(accounts []*mc.MCaccount, rotator *vpn.Rotator) bool {
+	vpnOk := testVPNConnections(rotator)
+	accountsOk := testAccounts(accounts)
+
+	fmt.Println()
+	if !vpnOk {
+		fmt.Println("[DRY-TEST] FAILED: VPN is not functioning")
+	}
+	if !accountsOk {
+		fmt.Println("[DRY-TEST] FAILED: No accounts are working")
+	}
+
+	if !vpnOk || !accountsOk {
+		return false
+	}
+
+	fmt.Println("[DRY-TEST] PASSED: VPN and accounts are functional")
+	return true
 }
 
-func testAccounts(accounts []*mc.MCaccount) {
+func testAccounts(accounts []*mc.MCaccount) bool {
 	if len(accounts) == 0 {
-		fmt.Println("[DRY-TEST] No accounts to test")
-		return
+		fmt.Println("[DRY-TEST] Accounts: No accounts to test")
+		return false
 	}
+
+	workingAccounts := 0
 
 	for _, account := range accounts {
 		if account.Type != mc.Ms {
@@ -73,23 +91,34 @@ func testAccounts(accounts []*mc.MCaccount) {
 			fmt.Printf(" FAIL: %v\n", err)
 		} else {
 			fmt.Println(" PASS")
+			workingAccounts++
 		}
 	}
+
+	if workingAccounts == 0 {
+		fmt.Println("[DRY-TEST] Accounts: NONE functioning")
+		return false
+	}
+
+	fmt.Printf("[DRY-TEST] Accounts: %d/%d working\n", workingAccounts, len(accounts))
+	return workingAccounts > 0
 }
 
-func testVPNConnections(rotator *vpn.Rotator) {
+func testVPNConnections(rotator *vpn.Rotator) bool {
+	vpnConfigured := true
+
 	if rotator == nil {
 		vpnRegions, err := vpn.LoadRegions("vpn.txt")
 		if err != nil || len(vpnRegions) == 0 {
 			fmt.Println("[DRY-TEST] VPN: no regions configured")
-			return
-		}
-
-		vpnConfig, _ := vpn.LoadConfig("vpn_config.txt")
-		rotator, err = vpn.NewRotator(vpnRegions, vpnConfig)
-		if err != nil {
-			fmt.Printf("[DRY-TEST] VPN: failed to create rotator: %v\n", err)
-			return
+			vpnConfigured = false
+		} else {
+			vpnConfig, _ := vpn.LoadConfig("vpn_config.txt")
+			rotator, err = vpn.NewRotator(vpnRegions, vpnConfig)
+			if err != nil {
+				fmt.Printf("[DRY-TEST] VPN: failed to create rotator: %v\n", err)
+				return false
+			}
 		}
 	}
 
@@ -112,11 +141,18 @@ func testVPNConnections(rotator *vpn.Rotator) {
 		}
 	}
 
+	if rotator == nil {
+		if vpnConfigured {
+			fmt.Println("[DRY-TEST] VPN: rotator creation failed")
+		}
+		return false
+	}
+
 	err := rotator.Connect()
 	if err != nil {
 		fmt.Printf("[DRY-TEST] VPN connect: FAIL: %v\n", err)
 		rotator.Disconnect()
-		return
+		return false
 	}
 
 	region := rotator.CurrentRegion()
@@ -132,4 +168,5 @@ func testVPNConnections(rotator *vpn.Rotator) {
 
 	rotator.Disconnect()
 	fmt.Println("[DRY-TEST] VPN: PASS")
+	return true
 }
