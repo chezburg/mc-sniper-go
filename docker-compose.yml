@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  mcsnipergo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcsnipergo
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./mullvad:/etc/wireguard:ro
+    restart: unless-stopped
+    environment:
+      - TZ=UTC
