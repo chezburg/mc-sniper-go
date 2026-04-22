@@ -26,6 +26,7 @@ options:
 
 var disableBar bool
 var autoDroptimeMode bool
+var dryTestMode bool
 
 func init() {
 	flag.Usage = func() {
@@ -71,6 +72,8 @@ func main() {
 	flag.BoolVar(&autoDroptimeMode, "auto-droptime", false, "auto snipe 3-char usernames from 3name.xyz")
 	flag.BoolVar(&autoDroptimeMode, "3", false, "auto snipe 3-char usernames from 3name.xyz")
 	flag.BoolVar(&disableBar, "disable-bar", false, "disables status bar")
+	flag.BoolVar(&dryTestMode, "dry-test", false, "test ms.txt accounts and VPN without sniping")
+	flag.BoolVar(&dryTestMode, "d", false, "test ms.txt accounts and VPN without sniping")
 	if isFlagPassed("disable-bar") {
 		disableBar = true
 	}
@@ -156,6 +159,11 @@ func main() {
 
 	if autoDroptimeMode {
 		runAutoDroptime(accounts, proxies, rotator)
+		return
+	}
+
+	if dryTestMode {
+		testVPNAndAccounts(accounts, rotator)
 		return
 	}
 
