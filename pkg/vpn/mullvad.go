@@ -52,7 +52,18 @@ func (p *MullvadProvider) Connect(country string) error {
 		return fmt.Errorf("mullvad-vpn CLI not found. Install from mullvad.net")
 	}
 
-	cmd := exec.Command("mullvad", "connect", country)
+	if country != "" {
+		cmd := exec.Command("mullvad", "relay", "set", country)
+		_, err := cmd.Output()
+		if err != nil {
+			if exitErr, ok := err.(*exec.ExitError); ok {
+				return fmt.Errorf("mullvad relay set failed: %s", string(exitErr.Stderr))
+			}
+			return fmt.Errorf("mullvad relay set failed: %v", err)
+		}
+	}
+
+	cmd := exec.Command("mullvad", "connect")
 	_, err := cmd.Output()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
