@@ -1,0 +1,9 @@
+mullvad:us
+mullvad:uk
+mullvad:de
+mullvad:jp
+mullvad:au
+mullvad:ca
+proton:nl
+proton:jp
+proton:sg
