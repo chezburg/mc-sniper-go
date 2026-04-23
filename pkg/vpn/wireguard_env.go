@@ -1,8 +1,11 @@
 package vpn
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +13,21 @@ import (
 	"sync"
 	"time"
 )
+
+const MullvadAPIURL = "https://api.mullvad.net/www/relays/all/"
+
+type MullvadRelay struct {
+	Hostname     string `json:"hostname"`
+	CountryCode  string `json:"country_code"`
+	CountryName string `json:"country_name"`
+	CityCode    string `json:"city_code"`
+	CityName   string `json:"city_name"`
+	IPv4AddrIn  string `json:"ipv4_addr_in"`
+	IPv6AddrIn string `json:"ipv6_addr_in"`
+	Pubkey      string `json:"pubkey"`
+	Type        string `json:"type"`
+	Active      bool   `json:"active"`
+}
 
 type WireguardEnvProvider struct {
 	mu          sync.Mutex
@@ -21,6 +39,7 @@ type WireguardEnvProvider struct {
 	endpoint   string
 	publicKey  string
 	presetConf string
+	mullvad    bool
 }
 
 func NewWireguardEnvProvider(privateKey, address, endpoint, publicKey string) *WireguardEnvProvider {
@@ -38,6 +57,14 @@ func NewWireguardEnvProviderFromConfig(presetConf string) *WireguardEnvProvider 
 	}
 }
 
+func NewMullvadWireguardProvider(privateKey, address string) *WireguardEnvProvider {
+	return &WireguardEnvProvider{
+		privateKey: privateKey,
+		address:   address,
+		mullvad:   true,
+	}
+}
+
 func (p *WireguardEnvProvider) Name() string {
 	return "wireguard"
 }
@@ -47,6 +74,10 @@ func (p *WireguardEnvProvider) Connect(country string) error {
 		return fmt.Errorf("wg-quick not found. Install wireguard-tools")
 	}
 
+	if p.mullvad {
+		return p.connectMullvad(country)
+	}
+
 	configName := "wg0"
 	configPath := filepath.Join(WireguardConfigPath, configName+".conf")
 
@@ -54,7 +85,7 @@ func (p *WireguardEnvProvider) Connect(country string) error {
 		return fmt.Errorf("failed to create wireguard dir: %v", err)
 	}
 
-var wgConfig string
+	var wgConfig string
 	if p.presetConf != "" {
 		wgConfig = p.presetConf
 	} else {
@@ -126,6 +157,101 @@ func (p *WireguardEnvProvider) Disconnect() error {
 	os.Remove(configPath)
 	p.currentConf = ""
 	return err
+}
+
+func (p *WireguardEnvProvider) connectMullvad(country string) error {
+	relays, err := fetchMullvadRelays()
+	if err != nil {
+		return fmt.Errorf("failed to fetch mullvad relays: %v", err)
+	}
+
+	country = strings.ToLower(country)
+	var relay *MullvadRelay
+	for _, r := range relays {
+		if r.Type == "wireguard" && r.Active && strings.ToLower(r.CountryCode) == country {
+			relay = &r
+			break
+		}
+	}
+	if relay == nil {
+		return fmt.Errorf("no wireguard relay found for country: %s", country)
+	}
+
+	configName := "wg0"
+	configPath := filepath.Join(WireguardConfigPath, configName+".conf")
+
+	if err := os.MkdirAll(WireguardConfigPath, 0755); err != nil {
+		return fmt.Errorf("failed to create wireguard dir: %v", err)
+	}
+
+	wgConfig := fmt.Sprintf(`[Interface]
+PrivateKey = %s
+Address = %s
+
+[Peer]
+PublicKey = %s
+Endpoint = %s:51820
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
+`, p.privateKey, p.address, relay.Pubkey, relay.IPv4AddrIn)
+
+	if err := os.WriteFile(configPath, []byte(wgConfig), 0600); err != nil {
+		return fmt.Errorf("failed to write wireguard config: %v", err)
+	}
+
+	cmd := exec.Command("wg-quick", "up", configPath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		os.Remove(configPath)
+		return fmt.Errorf("wg-quick up failed: %s, %v", string(out), err)
+	}
+
+	p.currentConf = configName
+	p.currentIP = extractIP(p.address)
+	p.endpoint = relay.IPv4AddrIn
+	p.publicKey = relay.Pubkey
+
+	time.Sleep(500 * time.Millisecond)
+
+	for i := 0; i < 10; i++ {
+		if p.IsConnected() {
+			ip, _ := p.GetCurrentIP()
+			if ip != "" {
+				p.currentIP = ip
+			}
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	p.Disconnect()
+	return fmt.Errorf("connection timeout")
+}
+
+func fetchMullvadRelays() ([]MullvadRelay, error) {
+	req, err := http.NewRequest("GET", MullvadAPIURL, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var relays []MullvadRelay
+	if err := json.Unmarshal(body, &relays); err != nil {
+		return nil, err
+	}
+
+	return relays, nil
 }
 
 func (p *WireguardEnvProvider) GetCurrentRegion() (Region, error) {

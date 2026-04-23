@@ -224,7 +224,7 @@ func testVPNConnections(rotator *vpn.Rotator) bool {
 
 	if rotator == nil {
 		if cfg.WIREGUARD_PRIVATE_KEY != "" && cfg.VPNServiceProvider == config.ProviderMullvad {
-			fmt.Println("[DRY-TEST] VPN: using WireGuard")
+			fmt.Println("[DRY-TEST] VPN: using Mullvad WireGuard")
 
 			regions := make([]vpn.VPNRegion, 0)
 			if len(cfg.SERVER_COUNTRIES) > 0 {
@@ -239,11 +239,9 @@ func testVPNConnections(rotator *vpn.Rotator) bool {
 				regions = append(regions, vpn.VPNRegion{Provider: "wireguard", Country: "ca"})
 			}
 
-			wgProvider := vpn.NewWireguardEnvProvider(
+			wgProvider := vpn.NewMullvadWireguardProvider(
 				cfg.WIREGUARD_PRIVATE_KEY,
 				cfg.WIREGUARD_ADDRESSES,
-				"",
-				"",
 			)
 			rotator, _ = vpn.NewRotatorWithProvider(regions, &vpn.RotatorConfig{}, wgProvider)
 		} else {

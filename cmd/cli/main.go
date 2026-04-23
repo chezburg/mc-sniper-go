@@ -111,11 +111,9 @@ cfg := config.Load()
 			regions = append(regions, vpn.VPNRegion{Provider: "wireguard", Country: "ca"})
 		}
 
-		wgProvider := vpn.NewWireguardEnvProvider(
+		wgProvider := vpn.NewMullvadWireguardProvider(
 			cfg.WIREGUARD_PRIVATE_KEY,
 			cfg.WIREGUARD_ADDRESSES,
-			"",
-			"",
 		)
 		rotator, _ = vpn.NewRotatorWithProvider(regions, &vpn.RotatorConfig{}, wgProvider)
 	} else {
