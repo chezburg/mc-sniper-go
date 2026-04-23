@@ -168,12 +168,23 @@ func (p *WireguardEnvProvider) connectMullvad(country string) error {
 		return fmt.Errorf("failed to fetch mullvad relays: %v", err)
 	}
 
-	country = strings.ToLower(country)
+	countryLower := strings.ToLower(country)
 	var relay *MullvadRelay
 	for _, r := range relays {
-		if r.Type == "wireguard" && r.Active && strings.ToLower(r.CountryCode) == country {
-			relay = &r
-			break
+		if r.Type == "wireguard" && r.Active {
+			if strings.ToLower(r.CountryCode) == countryLower {
+				relay = &r
+				break
+			}
+		}
+	}
+
+	if relay == nil {
+		for _, r := range relays {
+			if r.Type == "wireguard" && r.Active && strings.Contains(strings.ToLower(r.CountryName), countryLower) {
+				relay = &r
+				break
+			}
 		}
 	}
 	if relay == nil {
