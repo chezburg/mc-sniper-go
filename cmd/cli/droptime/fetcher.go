@@ -2,6 +2,7 @@ package droptime
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 	"regexp"
 	"sort"
@@ -13,6 +14,36 @@ type DropInfo struct {
 	Username  string
 	DropStart time.Time
 	DropEnd   time.Time
+}
+
+func testConnectivity() {
+	fmt.Println("[*] Running connectivity diagnostic...")
+	
+	// DNS Check
+	_, err := net.LookupHost("3name.xyz")
+	if err != nil {
+		fmt.Printf("[!] DNS Resolution for 3name.xyz failed: %v\n", err)
+	} else {
+		fmt.Println("[*] DNS Resolution: SUCCESS")
+	}
+
+	// Cloudflare Ping (Curl)
+	cmd := exec.Command("curl", "-Is", "--connect-timeout", "10", "https://1.1.1.1")
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("[!] Connectivity test to 1.1.1.1 (Cloudflare) failed: %v\n", err)
+	} else {
+		fmt.Println("[*] Connectivity to 1.1.1.1: SUCCESS")
+	}
+
+	// 3name.xyz Ping (Curl)
+	cmd = exec.Command("curl", "-Is", "--connect-timeout", "10", "-k", "https://3name.xyz")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Printf("[!] Connectivity test to 3name.xyz failed: %v (output: %s)\n", err, string(output))
+	} else {
+		fmt.Println("[*] Connectivity to 3name.xyz: SUCCESS")
+	}
 }
 
 func curlFetch(url string, proxy string) (string, error) {
@@ -32,6 +63,8 @@ func curlFetch(url string, proxy string) (string, error) {
 
 func FetchDroptimes(proxies []string) ([]DropInfo, error) {
 	fmt.Println("[*] Fetching droptimes from 3name.xyz...")
+	
+	testConnectivity()
 
 	var html string
 	var err error
