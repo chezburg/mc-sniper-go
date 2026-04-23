@@ -127,6 +127,12 @@ PersistentKeepalive = 25
 	p.currentConf = configName
 	p.currentIP = extractIP(p.address)
 
+	if p.endpoint != "" {
+		if err := p.addEndpointRoute(p.endpoint); err != nil {
+			fmt.Printf("[!] Warning: failed to add endpoint route: %v\n", err)
+		}
+	}
+
 	time.Sleep(500 * time.Millisecond)
 
 	for i := 0; i < 10; i++ {
@@ -228,6 +234,13 @@ PersistentKeepalive = 25
 	p.currentIP = extractIP(p.address)
 	p.endpoint = relay.IPv4AddrIn
 	p.publicKey = relay.Pubkey
+
+	// Add specific route for the endpoint to avoid routing loop with /1 hack
+	if err := p.addEndpointRoute(relay.IPv4AddrIn); err != nil {
+		fmt.Printf("[!] Warning: failed to add endpoint route: %v. VPN might not route traffic.\n", err)
+	} else {
+		fmt.Printf("[*] Added specific route for VPN endpoint %s to avoid loop\n", relay.IPv4AddrIn)
+	}
 
 	time.Sleep(500 * time.Millisecond)
 
@@ -389,6 +402,55 @@ func extractIP(address string) string {
 		return ip.String()
 	}
 	return ""
+}
+
+func (p *WireguardEnvProvider) addEndpointRoute(endpoint string) error {
+	// Strip port if present
+	host := endpoint
+	if h, _, err := net.SplitHostPort(endpoint); err == nil {
+		host = h
+	}
+
+	// Resolve hostname if necessary
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return fmt.Errorf("failed to resolve endpoint %s: %w", host, err)
+	}
+	
+	if len(ips) == 0 {
+		return fmt.Errorf("no IPs found for endpoint %s", host)
+	}
+	
+	targetIP := ips[0].String()
+
+	// Get current default gateway
+	cmd := exec.Command("ip", "route", "show", "default")
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get default route: %w", err)
+	}
+
+	// Output format example: "default via 192.168.128.1 dev eth0"
+	parts := strings.Fields(string(out))
+	var gateway string
+	var iface string
+	for i, part := range parts {
+		if part == "via" && i+1 < len(parts) {
+			gateway = parts[i+1]
+		}
+		if part == "dev" && i+1 < len(parts) {
+			iface = parts[i+1]
+		}
+	}
+
+	if gateway != "" && iface != "" {
+		fmt.Printf("[*] Detected gateway %s on %s, adding route for endpoint %s (%s)\n", gateway, iface, host, targetIP)
+		// ip route add <endpoint> via <gateway> dev <iface>
+		cmd = exec.Command("ip", "route", "add", targetIP, "via", gateway, "dev", iface)
+		return cmd.Run()
+	}
+	
+	return fmt.Errorf("could not detect default gateway from: %s", string(out))
 }
 
 func GenerateWireguardConfig(privateKey, address, publicKey, endpoint string) string {
