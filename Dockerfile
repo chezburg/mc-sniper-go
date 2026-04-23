@@ -18,7 +18,7 @@ RUN apt-get update && \
         iproute2 \
         ca-certificates \
         curl \
-        ip6tables \
+        iptables \
         kmod && \
     rm -rf /var/lib/apt/lists/*
 
