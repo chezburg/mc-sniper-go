@@ -15,19 +15,36 @@ type DropInfo struct {
 	DropEnd   time.Time
 }
 
-func curlFetch(url string) (string, error) {
-	cmd := exec.Command("curl", "-s", "-L", "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", url)
+func curlFetch(url string, proxy string) (string, error) {
+	args := []string{"-s", "-L", "--connect-timeout", "20", "-m", "60", "--retry", "3", "--retry-delay", "5", "--ipv4", "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", url}
+	
+	if proxy != "" {
+		args = append([]string{"-x", proxy}, args...)
+	}
+
+	cmd := exec.Command("curl", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("curl failed: %w (output: %s)", err, string(output))
+		return "", fmt.Errorf("curl failed (proxy: %s): %w (output: %s)", proxy, err, string(output))
 	}
 	return string(output), nil
 }
 
-func FetchDroptimes() ([]DropInfo, error) {
+func FetchDroptimes(proxies []string) ([]DropInfo, error) {
 	fmt.Println("[*] Fetching droptimes from 3name.xyz...")
 
-	html, err := curlFetch("https://3name.xyz/list")
+	var html string
+	var err error
+
+	// Try direct first
+	html, err = curlFetch("https://3name.xyz/list", "")
+	
+	// If direct fails and we have proxies, try the first proxy
+	if err != nil && len(proxies) > 0 && proxies[0] != "" {
+		fmt.Printf("[*] Direct fetch failed, trying with proxy...\n")
+		html, err = curlFetch("https://3name.xyz/list", proxies[0])
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch list: %w", err)
 	}
@@ -79,8 +96,18 @@ func FetchDroptimes() ([]DropInfo, error) {
 	return drops, nil
 }
 
-func FetchDropInfo(username string) (DropInfo, error) {
-	html, err := curlFetch(fmt.Sprintf("https://3name.xyz/name/%s", username))
+func FetchDropInfo(username string, proxies []string) (DropInfo, error) {
+	var html string
+	var err error
+
+	// Try direct first
+	html, err = curlFetch(fmt.Sprintf("https://3name.xyz/name/%s", username), "")
+	
+	// If direct fails and we have proxies, try the first proxy
+	if err != nil && len(proxies) > 0 && proxies[0] != "" {
+		html, err = curlFetch(fmt.Sprintf("https://3name.xyz/name/%s", username), proxies[0])
+	}
+
 	if err != nil {
 		return DropInfo{}, fmt.Errorf("failed to fetch: %w", err)
 	}

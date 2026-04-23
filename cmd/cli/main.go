@@ -212,7 +212,7 @@ cfg := config.Load()
 	var dropRange mc.DropRange
 	if username != "" {
 		log.Log("info", "fetching droptime for %s...", username)
-		dropInfo, err := droptime.FetchDropInfo(username)
+		dropInfo, err := droptime.FetchDropInfo(username, proxies)
 		if err == nil {
 			dropRange = mc.DropRange{
 				Start: dropInfo.DropStart,
@@ -260,7 +260,7 @@ cfg := config.Load()
 
 func runAutoDroptime(accounts []*mc.MCaccount, proxies []string, rotator *vpn.Rotator) {
 	for {
-		drops, err := droptime.FetchDroptimes()
+		drops, err := droptime.FetchDroptimes(proxies)
 		if err != nil {
 			log.Log("err", "failed to fetch droptimes: %v", err)
 			log.Input("press enter to continue")
