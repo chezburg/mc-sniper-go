@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -44,6 +43,40 @@ func (account *MCaccount) AuthenticatedReq(method string, url string, body io.Re
 	return req, resp, nil
 }
 
+func (account *MCaccount) ExecuteAuthenticated(req *fasthttp.Request, resp *fasthttp.Response) error {
+	err := account.FastHttpClient.Do(req, resp)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode() == 401 && (account.RefreshToken != "" || account.Password != "") {
+		fmt.Printf("[!] auth: Received 401 for %s, attempting refresh...\n", account.Email)
+		
+		if account.RefreshToken != "" {
+			err = account.RefreshAuthenticate()
+		} else {
+			err = account.HeadlessAuthenticate(true)
+		}
+
+		if err != nil {
+			return fmt.Errorf("re-auth failed after 401: %v", err)
+		}
+
+		// Update header and retry
+		req.Header.Set("Authorization", "Bearer "+account.Bearer)
+		err = account.FastHttpClient.Do(req, resp)
+		if err != nil {
+			return err
+		}
+
+		if resp.StatusCode() == 401 {
+			return errors.New("received 401 even after successful re-auth")
+		}
+	}
+
+	return nil
+}
+
 // load account information (username, uuid) into accounts attributes, if not already there. When using Mojang authentication it is not necessary to load this info, as it will be automatically loaded.
 func (account *MCaccount) LoadAccountInfo() error {
 	req, resp, err := account.AuthenticatedReq("GET", "https://api.minecraftservices.com/minecraft/profile", nil)
@@ -55,7 +88,7 @@ func (account *MCaccount) LoadAccountInfo() error {
 		return err
 	}
 
-	err = account.FastHttpClient.Do(req, resp)
+	err = account.ExecuteAuthenticated(req, resp)
 
 	if err != nil {
 		return err
@@ -68,10 +101,6 @@ func (account *MCaccount) LoadAccountInfo() error {
 	}
 
 	respBytes := resp.Body()
-
-	if err != nil {
-		return err
-	}
 
 	var respJson accInfoResponse
 
@@ -91,23 +120,20 @@ func (account *MCaccount) HasGcApplied() (bool, error) {
 		return false, err
 	}
 
-	err = account.FastHttpClient.Do(req, resp)
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	err = account.ExecuteAuthenticated(req, resp)
 	if err != nil {
 		return false, err
 	}
 
 	bodyBytes := resp.Body()
-	if err != nil {
-		return false, err
-	}
-
 	statusCode := resp.StatusCode()
 
 	if statusCode == 200 {
 		return false, errors.New("successfully created profile with name test. unintended behavior, function is meant to check if gc is applied")
 
-	} else if statusCode == 401 {
-		return false, errors.New("received unauthorized response")
 	} else if statusCode == 400 {
 		var respError hasGcAppliedResp
 
@@ -153,17 +179,15 @@ func (account *MCaccount) NameChangeInfo() (nameChangeInfoResponse, error) {
 		return nameChangeInfoResponse{}, err
 	}
 
-	err = account.FastHttpClient.Do(req, resp)
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	err = account.ExecuteAuthenticated(req, resp)
 	if err != nil {
 		return nameChangeInfoResponse{}, err
 	}
 
 	respBody := resp.Body()
-
-	if err != nil {
-		return nameChangeInfoResponse{}, err
-	}
-
 	statusCode := resp.StatusCode()
 
 	if statusCode >= 400 {
@@ -186,11 +210,10 @@ func (account *MCaccount) NameChangeInfo() (nameChangeInfoResponse, error) {
 }
 
 func randomString(n int) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-
-	s := make([]rune, n)
+	const letters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	s := make([]byte, n)
 	for i := range s {
-		s[i] = letters[rand.Intn(len(letters))]
+		s[i] = letters[time.Now().UnixNano()%int64(len(letters))]
 	}
 	return string(s)
 }
@@ -203,6 +226,9 @@ func (account *MCaccount) License() error {
 		return err
 	}
 
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
 	req.Header.Add("authority", "api.minecraftservices.com")
 	req.Header.Add("accept", "*/*")
 	req.Header.Add("accept-language", "en-US,en;q=0.6")
@@ -214,7 +240,7 @@ func (account *MCaccount) License() error {
 	req.Header.Add("sec-fetch-site", "cross-site")
 	req.Header.Add("sec-gpc", "1")
 
-	err = account.FastHttpClient.Do(req, resp)
+	err = account.ExecuteAuthenticated(req, resp)
 
 	if err != nil {
 		return err
@@ -236,7 +262,10 @@ func (account *MCaccount) CreateProfile(username string, client *fasthttp.Client
 		return 0, "", err
 	}
 
-	err = client.Do(req, resp)
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	err = account.ExecuteAuthenticated(req, resp)
 
 	if err != nil {
 		return 0, "", err
@@ -273,7 +302,10 @@ func (account *MCaccount) ChangeUsername(username string, client *fasthttp.Clien
 		return 0, "", err
 	}
 
-	err = client.Do(req, resp)
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	err = account.ExecuteAuthenticated(req, resp)
 
 	if err != nil {
 		return 0, "", err
@@ -305,9 +337,12 @@ func (account *MCaccount) ChangeSkinFromUrl(url, variant string) error {
 		return err
 	}
 
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
 	req.Header.Set("Content-Type", "application/json")
 
-	err = account.FastHttpClient.Do(req, resp)
+	err = account.ExecuteAuthenticated(req, resp)
 
 	if err != nil {
 		return err

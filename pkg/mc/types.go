@@ -43,6 +43,7 @@ type MCaccount struct {
 	Username       string
 	FastHttpClient *fasthttp.Client // client is used for all requests except create auth, profile create, and name change
 	Type           AccType
+	TokensPath     string
 }
 
 /// HTTP RESPONSE BODIES ///

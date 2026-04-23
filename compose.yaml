@@ -12,6 +12,7 @@ services:
       - /dev/net/tun:/dev/net/tun
     volumes:
       - ./mullvad:/etc/wireguard:ro
+      - /docker/mcsnipergo:/app/data/
     restart: "no"
     environment:
       - TZ=UTC

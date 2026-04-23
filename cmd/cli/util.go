@@ -31,6 +31,12 @@ func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string)
 
 func getAccountsFromEnv() ([]*mc.MCaccount, error) {
 	var accounts []*mc.MCaccount
+	tokensPath := "tokens.json"
+	if os.Getenv("TOKENS_PATH") != "" {
+		tokensPath = os.Getenv("TOKENS_PATH")
+	}
+
+	tokensMap := mc.LoadTokensMap(tokensPath)
 
 	bearerToken := os.Getenv("MC_BEARER_TOKEN")
 	email := os.Getenv("MC_EMAIL")
@@ -38,9 +44,10 @@ func getAccountsFromEnv() ([]*mc.MCaccount, error) {
 
 	if bearerToken != "" {
 		acc := &mc.MCaccount{
-			Email:   email,
-			Type:    mc.Ms,
-			Bearer:  bearerToken,
+			Email:      email,
+			Type:       mc.Ms,
+			Bearer:     bearerToken,
+			TokensPath: tokensPath,
 		}
 		acc.DefaultFastHttpHandler()
 		accounts = append(accounts, acc)
@@ -49,10 +56,19 @@ func getAccountsFromEnv() ([]*mc.MCaccount, error) {
 
 	if email != "" && password != "" {
 		acc := &mc.MCaccount{
-			Email:    email,
-			Password: password,
-			Type:     mc.Ms,
+			Email:      email,
+			Password:   password,
+			Type:       mc.Ms,
+			TokensPath: tokensPath,
 		}
+		
+		// Check for cached token
+		if td, ok := tokensMap[email]; ok && td.Bearer != "" {
+			acc.Bearer = td.Bearer
+			acc.RefreshToken = td.RefreshToken
+			log.Log("info", "Loaded cached token for %s", email)
+		}
+
 		acc.DefaultFastHttpHandler()
 		accounts = append(accounts, acc)
 		log.Log("info", "Loaded account from MC_EMAIL/MC_PASSWORD env vars")
@@ -67,13 +83,20 @@ func getAccountsFromEnv() ([]*mc.MCaccount, error) {
 			continue
 		}
 		acc := &mc.MCaccount{
-			Email:    parts[0],
-			Password: parts[1],
-			Type:     mc.MsPr,
+			Email:      parts[0],
+			Password:   parts[1],
+			Type:       mc.MsPr,
+			TokensPath: tokensPath,
 		}
+		
+		if td, ok := tokensMap[acc.Email]; ok && td.Bearer != "" {
+			acc.Bearer = td.Bearer
+			acc.RefreshToken = td.RefreshToken
+		}
+
 		acc.DefaultFastHttpHandler()
 		accounts = append(accounts, acc)
-		log.Log("info", "Loaded GC account from GC_ACCOUNTS env var")
+		log.Log("info", "Loaded GC account %s", acc.Email)
 	}
 
 	gpAccounts := cfg.GetGPAccounts()
@@ -83,28 +106,71 @@ func getAccountsFromEnv() ([]*mc.MCaccount, error) {
 			continue
 		}
 		acc := &mc.MCaccount{
-			Email:    parts[0],
-			Password: parts[1],
-			Type:     mc.MsGp,
+			Email:      parts[0],
+			Password:   parts[1],
+			Type:       mc.MsGp,
+			TokensPath: tokensPath,
 		}
+
+		if td, ok := tokensMap[acc.Email]; ok && td.Bearer != "" {
+			acc.Bearer = td.Bearer
+			acc.RefreshToken = td.RefreshToken
+		}
+
 		acc.DefaultFastHttpHandler()
 		accounts = append(accounts, acc)
-		log.Log("info", "Loaded GP account from GP_ACCOUNTS env var")
+		log.Log("info", "Loaded GP account %s", acc.Email)
 	}
 
 	msAccounts := cfg.GetMSAccounts()
-	for _, bearer := range msAccounts {
-		if bearer == "" {
+	for _, cred := range msAccounts {
+		if cred == "" {
 			continue
 		}
-		acc := &mc.MCaccount{
-			Email:   "",
-			Type:    mc.Ms,
-			Bearer:  bearer,
+		
+		var acc *mc.MCaccount
+		if strings.Contains(cred, ":") {
+			parts := strings.SplitN(cred, ":", 2)
+			acc = &mc.MCaccount{
+				Email:      parts[0],
+				Password:   parts[1],
+				Type:       mc.Ms,
+				TokensPath: tokensPath,
+			}
+			if td, ok := tokensMap[acc.Email]; ok && td.Bearer != "" {
+				acc.Bearer = td.Bearer
+				acc.RefreshToken = td.RefreshToken
+			}
+		} else {
+			acc = &mc.MCaccount{
+				Type:       mc.Ms,
+				Bearer:     cred,
+				TokensPath: tokensPath,
+			}
 		}
+
 		acc.DefaultFastHttpHandler()
 		accounts = append(accounts, acc)
-		log.Log("info", "Loaded MS account from MS_ACCOUNTS env var")
+		log.Log("info", "Loaded MS account %s", acc.Email)
+	}
+
+	// Initial auth/refresh for all accounts that need it
+	for _, acc := range accounts {
+		if acc.Bearer == "" && acc.Password != "" {
+			if acc.RefreshToken != "" {
+				err := acc.RefreshAuthenticate()
+				if err != nil {
+					log.Log("warn", "Failed to refresh token for %s: %v. Falling back to headless...", acc.Email, err)
+					acc.HeadlessAuthenticate(true)
+				}
+			} else {
+				acc.HeadlessAuthenticate(true)
+			}
+		} else if acc.RefreshToken != "" {
+			// Optional: force refresh on start to ensure it's fresh
+			log.Log("info", "Refreshing token for %s on startup...", acc.Email)
+			acc.RefreshAuthenticate()
+		}
 	}
 
 	return accounts, nil
@@ -186,7 +252,6 @@ func testAccounts(accounts []*mc.MCaccount) bool {
 
 		fmt.Printf("[DRY-TEST] Testing %s...", account.Email)
 
-		// If bearer token already exists, validate it instead of re-authenticating
 		if account.Bearer != "" {
 			err := account.LoadAccountInfo()
 			if err != nil {
@@ -198,13 +263,26 @@ func testAccounts(accounts []*mc.MCaccount) bool {
 			continue
 		}
 
-		// Otherwise try to authenticate
-		err := account.MicrosoftAuthenticate("")
+		// Otherwise try to authenticate using our new logic
+		var err error
+		if account.RefreshToken != "" {
+			err = account.RefreshAuthenticate()
+		} else if account.Password != "" {
+			err = account.HeadlessAuthenticate(true)
+		} else {
+			err = fmt.Errorf("no credentials available")
+		}
+
 		if err != nil {
 			fmt.Printf(" FAIL: %v\n", err)
 		} else {
-			fmt.Println(" PASS")
-			workingAccounts++
+			err = account.LoadAccountInfo()
+			if err != nil {
+				fmt.Printf(" FAIL (info): %v\n", err)
+			} else {
+				fmt.Printf(" PASS (user: %s)\n", account.Username)
+				workingAccounts++
+			}
 		}
 	}
 

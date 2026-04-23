@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/chromedp/chromedp v0.15.1
 	github.com/gookit/color v1.5.4
+	github.com/playwright-community/playwright-go v0.5700.1
 	github.com/valyala/fasthttp v1.48.0
 )
 
@@ -12,12 +13,14 @@ require (
 	github.com/andybalholm/brotli v1.0.5 // indirect
 	github.com/chromedp/cdproto v0.0.0-20260321001828-e3e3800016bc // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
+	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433 // indirect
+	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/klauspost/compress v1.16.3 // indirect
-	github.com/orisano/pixelmatch v0.0.0-20230914042517-fa304d1dc785 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/xo/terminfo v0.0.0-20210125001918-ca9a967f8778 // indirect
 	golang.org/x/net v0.10.0 // indirect
