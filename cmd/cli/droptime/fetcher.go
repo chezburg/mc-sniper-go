@@ -16,7 +16,7 @@ type DropInfo struct {
 }
 
 func curlFetch(url string, proxy string) (string, error) {
-	args := []string{"-s", "-L", "--connect-timeout", "20", "-m", "60", "--retry", "3", "--retry-delay", "5", "--ipv4", "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", url}
+	args := []string{"-sS", "-L", "-k", "--connect-timeout", "30", "-m", "60", "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", url}
 	
 	if proxy != "" {
 		args = append([]string{"-x", proxy}, args...)
@@ -49,9 +49,8 @@ func FetchDroptimes(proxies []string) ([]DropInfo, error) {
 		return nil, fmt.Errorf("failed to fetch list: %w", err)
 	}
 
-	// Regex to find username and lower bound together
-	// <a href="/name/3_k"><div class="username-list-item username-list-item-timer">3_k</div></a><span class="timer-description" data-lower-bound="1777511310770">
-	combinedRegex := regexp.MustCompile(`<a href="/name/([a-zA-Z0-9_]+)">.*?data-lower-bound="(\d+)"`)
+	// Regex to find username and lower bound together, handles newlines
+	combinedRegex := regexp.MustCompile(`(?s)<a href="/name/([a-zA-Z0-9_]+)">.*?data-lower-bound="(\d+)"`)
 	matches := combinedRegex.FindAllStringSubmatch(html, -1)
 
 	if len(matches) == 0 {
