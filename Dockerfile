@@ -1,4 +1,4 @@
-FROM golang:1.21-bookworm
+FROM golang:1.26-bookworm
 
 # Install dependencies for building and runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
