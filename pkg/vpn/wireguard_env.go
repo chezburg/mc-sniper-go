@@ -96,6 +96,7 @@ func (p *WireguardEnvProvider) Connect(country string) error {
 		if p.address != "" {
 			interfaceConfig += fmt.Sprintf("Address = %s\n", p.address)
 		}
+		interfaceConfig += "MTU = 1280\n"
 
 		peerConfig := ""
 		if p.publicKey != "" {
@@ -211,6 +212,7 @@ func (p *WireguardEnvProvider) connectMullvad(country string) error {
 	wgConfig := fmt.Sprintf(`[Interface]
 PrivateKey = %s
 Address = %s
+MTU = 1280
 
 [Peer]
 PublicKey = %s
@@ -445,8 +447,8 @@ func (p *WireguardEnvProvider) addEndpointRoute(endpoint string) error {
 
 	if gateway != "" && iface != "" {
 		fmt.Printf("[*] Detected gateway %s on %s, adding route for endpoint %s (%s)\n", gateway, iface, host, targetIP)
-		// ip route add <endpoint> via <gateway> dev <iface>
-		cmd = exec.Command("ip", "route", "add", targetIP, "via", gateway, "dev", iface)
+		// ip route replace <endpoint> via <gateway> dev <iface>
+		cmd = exec.Command("ip", "route", "replace", targetIP, "via", gateway, "dev", iface)
 		return cmd.Run()
 	}
 	
@@ -458,6 +460,7 @@ func GenerateWireguardConfig(privateKey, address, publicKey, endpoint string) st
 	if address != "" {
 		interfaceConfig += fmt.Sprintf("Address = %s\n", address)
 	}
+	interfaceConfig += "MTU = 1280\n"
 
 	peerConfig := ""
 	if publicKey != "" {
