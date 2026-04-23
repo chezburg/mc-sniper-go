@@ -6,7 +6,6 @@ require (
 	github.com/chromedp/chromedp v0.15.1
 	github.com/gookit/color v1.5.4
 	github.com/valyala/fasthttp v1.48.0
-	golang.org/x/crypto v0.7.0
 )
 
 require (
