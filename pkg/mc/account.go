@@ -50,6 +50,9 @@ func (account *MCaccount) ExecuteAuthenticated(req *fasthttp.Request, resp *fast
 	}
 
 	if resp.StatusCode() == 401 && (account.RefreshToken != "" || account.Password != "") {
+		if account.LastAuthError != nil {
+			return fmt.Errorf("re-auth skipped because previous attempt failed: %v", account.LastAuthError)
+		}
 		fmt.Printf("[!] auth: Received 401 for %s, attempting refresh...\n", account.Email)
 		
 		if account.RefreshToken != "" {

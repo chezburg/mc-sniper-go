@@ -53,20 +53,26 @@ func SaveTokensMap(path string, tokens map[string]TokenData) error {
 }
 
 func (acc *MCaccount) HeadlessAuthenticate(headless bool) error {
+	if acc.LastAuthError != nil {
+		return acc.LastAuthError
+	}
 	fmt.Printf("[*] auth: Headless authenticating %s...\n", acc.Email)
 
 	accessToken, refreshToken, err := DoPlaywrightLogin(acc.Email, acc.Password, headless)
 	if err != nil {
+		acc.LastAuthError = err
 		return err
 	}
 
 	bearer, err := ExchangeForBearer(accessToken)
 	if err != nil {
+		acc.LastAuthError = err
 		return err
 	}
 
 	acc.Bearer = bearer
 	acc.RefreshToken = refreshToken
+	acc.LastAuthError = nil
 
 	// Save to map
 	if acc.TokensPath != "" {
@@ -99,13 +105,16 @@ func (acc *MCaccount) RefreshAuthenticate() error {
 
 	resp, err := http.PostForm(msTokenURL, data)
 	if err != nil {
+		acc.LastAuthError = err
 		return err
 	}
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != 200 {
-		return fmt.Errorf("refresh failed: %s", string(body))
+		err = fmt.Errorf("refresh failed: %s", string(body))
+		acc.LastAuthError = err
+		return err
 	}
 
 	var res struct {
@@ -116,11 +125,13 @@ func (acc *MCaccount) RefreshAuthenticate() error {
 
 	bearer, err := ExchangeForBearer(res.AccessToken)
 	if err != nil {
+		acc.LastAuthError = err
 		return err
 	}
 
 	acc.Bearer = bearer
 	acc.RefreshToken = res.RefreshToken
+	acc.LastAuthError = nil
 
 	// Save to map
 	if acc.TokensPath != "" {
@@ -184,10 +195,19 @@ func DoPlaywrightLogin(email, password string, headless bool) (string, string, e
 		return "", "", err
 	}
 
-	if _, err = page.Goto(msLoginURL, playwright.PageGotoOptions{
-		WaitUntil: playwright.WaitUntilStateNetworkidle,
-	}); err != nil {
-		return "", "", err
+	fmt.Println("[*] auth: Navigating to login page...")
+	for attempt := 1; attempt <= 3; attempt++ {
+		if _, err = page.Goto(msLoginURL, playwright.PageGotoOptions{
+			WaitUntil: playwright.WaitUntilStateLoad,
+			Timeout:   playwright.Float(60000),
+		}); err == nil {
+			break
+		}
+		fmt.Printf("[!] auth: Goto attempt %d failed: %v. Retrying...\n", attempt, err)
+		time.Sleep(2 * time.Second)
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("navigation failed after 3 attempts: %v", err)
 	}
 
 	emailSelectors := []string{"input[name='loginfmt']", "#i0116", "#usernameEntry", "input[type='email']"}
@@ -268,16 +288,17 @@ func DoPlaywrightLogin(email, password string, headless bool) (string, string, e
 		return "", "", fmt.Errorf("password field not found")
 	}
 
-	timeout := time.After(60 * time.Second)
-	ticker := time.NewTicker(1 * time.Second)
+	timeout := time.After(120 * time.Second)
+	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-timeout:
 			absPath, _ := filepath.Abs("error_timeout.png")
-			page.Screenshot(playwright.PageScreenshotOptions{Path: playwright.String(absPath)})
+			page.Screenshot(playwright.PageScreenshotOptions{Path: playwright.String(absPath), FullPage: playwright.Bool(true)})
 			currUrl := page.URL()
-			return "", "", fmt.Errorf("timeout waiting for tokens, last URL: %s (screenshot: %s)", currUrl, absPath)
+			bodyText, _ := page.InnerText("body")
+			return "", "", fmt.Errorf("timeout waiting for tokens, last URL: %s (screenshot: %s). Body: %s", currUrl, absPath, bodyText)
 		case <-ticker.C:
 			u := page.URL()
 			fmt.Printf("[*] auth: Waiting loop URL: %s\n", u)
@@ -299,8 +320,13 @@ func DoPlaywrightLogin(email, password string, headless bool) (string, string, e
 				
 				// New: check for specific rate limit/error text anywhere in frame
 				f_content, _ := f.InnerText("body")
-				if strings.Contains(f_content, "too many times") || strings.Contains(f_content, "incorrect") {
-					return "", "", fmt.Errorf("microsoft error: %s", strings.TrimSpace(f_content))
+				if strings.Contains(f_content, "too many times") || 
+				   strings.Contains(f_content, "incorrect account or password") ||
+				   strings.Contains(f_content, "Verify your identity") ||
+				   strings.Contains(f_content, "Help us protect your account") {
+					absPath, _ := filepath.Abs("error_blocked.png")
+					page.Screenshot(playwright.PageScreenshotOptions{Path: playwright.String(absPath), FullPage: playwright.Bool(true)})
+					return "", "", fmt.Errorf("microsoft blocked/errored: %s (screenshot: %s)", strings.TrimSpace(f_content), absPath)
 				}
 				// Generic error message detection
 				errorSelectors := []string{".error", "[id*='Error']", ".alert-danger"}

@@ -44,6 +44,7 @@ type MCaccount struct {
 	FastHttpClient *fasthttp.Client // client is used for all requests except create auth, profile create, and name change
 	Type           AccType
 	TokensPath     string
+	LastAuthError  error
 }
 
 /// HTTP RESPONSE BODIES ///
