@@ -41,6 +41,13 @@ func testConnectivity() {
 		fmt.Printf("[*] Routing Table:\n%s\n", string(output))
 	}
 
+	// WireGuard check
+	cmd = exec.Command("wg", "show")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		fmt.Printf("[*] WireGuard Status:\n%s\n", string(output))
+	}
+
 	// Cloudflare Ping (Curl)
 	cmd = exec.Command("curl", "-Is", "--connect-timeout", "10", "https://1.1.1.1")
 	err = cmd.Run()
@@ -48,6 +55,15 @@ func testConnectivity() {
 		fmt.Printf("[!] Connectivity test to 1.1.1.1 (Cloudflare) failed: %v\n", err)
 	} else {
 		fmt.Println("[*] Connectivity to 1.1.1.1: SUCCESS")
+	}
+
+	// Google DNS Ping (Curl)
+	cmd = exec.Command("curl", "-Is", "--connect-timeout", "10", "https://8.8.8.8")
+	err = cmd.Run()
+	if err != nil {
+		fmt.Printf("[!] Connectivity test to 8.8.8.8 (Google) failed: %v\n", err)
+	} else {
+		fmt.Println("[*] Connectivity to 8.8.8.8: SUCCESS")
 	}
 
 	// 3name.xyz Ping (Curl)
