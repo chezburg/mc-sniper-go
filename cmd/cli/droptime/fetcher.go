@@ -27,8 +27,22 @@ func testConnectivity() {
 		fmt.Println("[*] DNS Resolution: SUCCESS")
 	}
 
+	// Interfaces check
+	cmd := exec.Command("ip", "addr")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		fmt.Printf("[*] Network Interfaces:\n%s\n", string(output))
+	}
+
+	// Routes check
+	cmd = exec.Command("ip", "route")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		fmt.Printf("[*] Routing Table:\n%s\n", string(output))
+	}
+
 	// Cloudflare Ping (Curl)
-	cmd := exec.Command("curl", "-Is", "--connect-timeout", "10", "https://1.1.1.1")
+	cmd = exec.Command("curl", "-Is", "--connect-timeout", "10", "https://1.1.1.1")
 	err = cmd.Run()
 	if err != nil {
 		fmt.Printf("[!] Connectivity test to 1.1.1.1 (Cloudflare) failed: %v\n", err)
@@ -38,7 +52,7 @@ func testConnectivity() {
 
 	// 3name.xyz Ping (Curl)
 	cmd = exec.Command("curl", "-Is", "--connect-timeout", "10", "-k", "https://3name.xyz")
-	output, err := cmd.CombinedOutput()
+	output, err = cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("[!] Connectivity test to 3name.xyz failed: %v (output: %s)\n", err, string(output))
 	} else {
