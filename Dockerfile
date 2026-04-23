@@ -17,7 +17,9 @@ RUN apt-get update && \
         wireguard-tools \
         iproute2 \
         ca-certificates \
-        curl && \
+        curl \
+        ip6tables \
+        kmod && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
