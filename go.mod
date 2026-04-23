@@ -1,6 +1,6 @@
 module github.com/Kqzz/MCsniperGO
 
-go 1.21
+go 1.26
 
 require (
 	github.com/chromedp/chromedp v0.15.1
