@@ -50,6 +50,10 @@ func FetchDroptimes() ([]DropInfo, error) {
 	nameRegex := regexp.MustCompile(`/name/([a-zA-Z0-9_]+)`)
 	matches := nameRegex.FindAllStringSubmatch(html, -1)
 
+	if len(matches) == 0 {
+		return nil, fmt.Errorf("no name matches found in the HTML - the website structure might have changed")
+	}
+
 	seen := make(map[string]bool)
 	var names []string
 	for _, match := range matches {
@@ -124,7 +128,7 @@ func FetchDropInfo(username string) (DropInfo, error) {
 	upperMatch := upperRegex.FindStringSubmatch(html)
 
 	if len(lowerMatch) < 2 || len(upperMatch) < 2 {
-		return DropInfo{}, fmt.Errorf("could not find drop timestamps for %s", username)
+		return DropInfo{}, fmt.Errorf("could not find drop timestamps (data-lower-bound/data-upper-bound) for %s - the name might not be dropping soon or the page structure has changed", username)
 	}
 
 	lowerBound, err := strconv.ParseInt(lowerMatch[1], 10, 64)

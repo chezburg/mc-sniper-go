@@ -95,27 +95,45 @@ func GetDropRange() mc.DropRange {
 
 		rawDroptimesSplit := strings.Split(rawDroptimes, "-")
 
-		if len(rawDroptimesSplit) != 2 {
-			Log("err", "invalid droptime range")
+		var startDroptimeNum, endDroptimeNum int64
+		var err error
+
+		if len(rawDroptimesSplit) == 1 {
+			startDroptimeNum, err = strconv.ParseInt(rawDroptimesSplit[0], 10, 64)
+			if err != nil {
+				Log("err", "invalid droptime range, make sure to auto fetcher is sending the sniper a properly formatted time")
+				continue
+			}
+			endDroptimeNum = startDroptimeNum + 10
+		} else if len(rawDroptimesSplit) == 2 {
+			startDroptimeNum, err = strconv.ParseInt(rawDroptimesSplit[0], 10, 64)
+			if err != nil {
+				Log("err", "invalid droptime start")
+				continue
+			}
+			endDroptimeNum, err = strconv.ParseInt(rawDroptimesSplit[1], 10, 64)
+			if err != nil {
+				Log("err", "invalid droptime end")
+				continue
+			}
+		} else {
+			Log("err", "invalid droptime range, make sure to auto fetcher is sending the sniper a properly formatted time")
 			continue
 		}
 
-		startDroptimeNum, err := strconv.Atoi(rawDroptimesSplit[0])
-		if err != nil {
-			Log("err", "invalid droptime start")
-			continue
+		if startDroptimeNum > 10000000000 {
+			startDroptimeNum /= 1000
 		}
-		endDroptimeNum, err := strconv.Atoi(rawDroptimesSplit[1])
-		if err != nil {
-			Log("err", "invalid droptime end")
-			continue
+
+		if endDroptimeNum > 10000000000 {
+			endDroptimeNum /= 1000
 		}
-		startDroptime := time.Unix(int64(startDroptimeNum), 0)
-		endDroptime := time.Unix(int64(endDroptimeNum), 0)
+
+		startDroptime := time.Unix(startDroptimeNum, 0)
+		endDroptime := time.Unix(endDroptimeNum, 0)
 
 		return mc.DropRange{Start: startDroptime, End: endDroptime}
 	}
-
 }
 
 func LastQuarter(s string) string {

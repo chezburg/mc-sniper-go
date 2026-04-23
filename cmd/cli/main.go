@@ -79,6 +79,10 @@ func main() {
 
 	flag.Parse()
 
+	if startUsername == "" && !isFlagPassed("auto-droptime", "3") {
+		autoDroptimeMode = true
+	}
+
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
@@ -184,11 +188,6 @@ cfg := config.Load()
 		return
 	}
 
-	if autoDroptimeMode {
-		runAutoDroptime(accounts, proxies, rotator)
-		return
-	}
-
 	if dryTestMode {
 		ok := testVPNAndAccounts(accounts, rotator)
 		if !ok {
@@ -199,13 +198,34 @@ cfg := config.Load()
 
 	var username string
 
-	if !isFlagPassed("u", "username") {
+	if !isFlagPassed("u", "username") && !autoDroptimeMode {
 		username = log.Input("target username")
 	} else {
 		username = startUsername
 	}
 
-	dropRange := log.GetDropRange()
+	if autoDroptimeMode {
+		runAutoDroptime(accounts, proxies, rotator)
+		return
+	}
+
+	var dropRange mc.DropRange
+	if username != "" {
+		log.Log("info", "fetching droptime for %s...", username)
+		dropInfo, err := droptime.FetchDropInfo(username)
+		if err == nil {
+			dropRange = mc.DropRange{
+				Start: dropInfo.DropStart,
+				End:   dropInfo.DropEnd,
+			}
+			log.Log("success", "found droptime: %s", dropRange.Start.Format("15:04:05"))
+		} else {
+			log.Log("warn", "could not auto-fetch droptime: %v", err)
+			dropRange = log.GetDropRange()
+		}
+	} else {
+		dropRange = log.GetDropRange()
+	}
 
 	go func() {
 
