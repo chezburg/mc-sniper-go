@@ -1,7 +1,6 @@
 package vpn
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,8 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/crypto/curve25519"
 )
 
 const MullvadAPIURL = "https://api.mullvad.net/www/relays/all/"
@@ -183,16 +180,8 @@ func (p *WireguardEnvProvider) connectMullvad(country string) error {
 		return fmt.Errorf("no wireguard relay found for country: %s", country)
 	}
 
-	if p.address == "" && p.mullvadAccount != "" {
-		addr, err := p.fetchMullvadAddress()
-		if err != nil {
-			return fmt.Errorf("failed to fetch mullvad address: %v", err)
-		}
-		p.address = addr
-	}
-
 	if p.address == "" {
-		return fmt.Errorf("wireguard address not set. Set MULLVAD_ACCOUNT env var or provide WIREGUARD_ADDRESSES")
+		return fmt.Errorf("wireguard address not set. Download wireguard config from Mullvad and set WIREGUARD_ADDRESSES (e.g., 10.64.x.x/32)")
 	}
 
 	configName := "wg0"
@@ -308,23 +297,7 @@ func (p *WireguardEnvProvider) fetchMullvadAddress() (string, error) {
 }
 
 func generatePublicKey(privateKey string) (string, error) {
-	keyBytes, err := base64.StdEncoding.DecodeString(privateKey)
-	if err != nil {
-		return "", err
-	}
-
-	if len(keyBytes) != 32 {
-		return "", fmt.Errorf("invalid private key length: %d", len(keyBytes))
-	}
-
-	var priv [32]byte
-	copy(priv[:], keyBytes)
-
-	pub := [32]byte{}
-	curve25519.ScalarBaseMult(&priv, &pub)
-
-	pubKeyBase64 := base64.StdEncoding.EncodeToString(pub[:])
-	return pubKeyBase64, nil
+	return "", fmt.Errorf("public key derivation not implemented - provide MULLVAD_ACCOUNT for address lookup")
 }
 
 func (p *WireguardEnvProvider) GetCurrentRegion() (Region, error) {
