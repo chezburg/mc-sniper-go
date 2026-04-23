@@ -28,6 +28,7 @@ type Config struct {
 
 	WIREGUARD_PRIVATE_KEY string
 	WIREGUARD_ADDRESSES    string
+	MULLVAD_ACCOUNT   string
 
 	SERVER_COUNTRIES  string
 	SERVER_REGIONS    string
@@ -60,6 +61,7 @@ func Load() *Config {
 
 	cfg.WIREGUARD_PRIVATE_KEY = os.Getenv("WIREGUARD_PRIVATE_KEY")
 	cfg.WIREGUARD_ADDRESSES = os.Getenv("WIREGUARD_ADDRESSES")
+	cfg.MULLVAD_ACCOUNT = os.Getenv("MULLVAD_ACCOUNT")
 
 	cfg.SERVER_COUNTRIES = os.Getenv("SERVER_COUNTRIES")
 	cfg.SERVER_REGIONS = os.Getenv("SERVER_REGIONS")

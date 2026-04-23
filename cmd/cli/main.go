@@ -114,6 +114,7 @@ cfg := config.Load()
 		wgProvider := vpn.NewMullvadWireguardProvider(
 			cfg.WIREGUARD_PRIVATE_KEY,
 			cfg.WIREGUARD_ADDRESSES,
+			cfg.MULLVAD_ACCOUNT,
 		)
 		rotator, _ = vpn.NewRotatorWithProvider(regions, &vpn.RotatorConfig{}, wgProvider)
 	} else {
