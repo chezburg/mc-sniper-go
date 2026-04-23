@@ -58,6 +58,55 @@ func getAccountsFromEnv() ([]*mc.MCaccount, error) {
 		log.Log("info", "Loaded account from MC_EMAIL/MC_PASSWORD env vars")
 	}
 
+	cfg := config.Load()
+
+	gcAccounts := cfg.GetGCAccounts()
+	for _, cred := range gcAccounts {
+		parts := strings.SplitN(cred, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		acc := &mc.MCaccount{
+			Email:    parts[0],
+			Password: parts[1],
+			Type:     mc.MsPr,
+		}
+		acc.DefaultFastHttpHandler()
+		accounts = append(accounts, acc)
+		log.Log("info", "Loaded GC account from GC_ACCOUNTS env var")
+	}
+
+	gpAccounts := cfg.GetGPAccounts()
+	for _, cred := range gpAccounts {
+		parts := strings.SplitN(cred, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		acc := &mc.MCaccount{
+			Email:    parts[0],
+			Password: parts[1],
+			Type:     mc.MsGp,
+		}
+		acc.DefaultFastHttpHandler()
+		accounts = append(accounts, acc)
+		log.Log("info", "Loaded GP account from GP_ACCOUNTS env var")
+	}
+
+	msAccounts := cfg.GetMSAccounts()
+	for _, bearer := range msAccounts {
+		if bearer == "" {
+			continue
+		}
+		acc := &mc.MCaccount{
+			Email:   "",
+			Type:    mc.Ms,
+			Bearer:  bearer,
+		}
+		acc.DefaultFastHttpHandler()
+		accounts = append(accounts, acc)
+		log.Log("info", "Loaded MS account from MS_ACCOUNTS env var")
+	}
+
 	return accounts, nil
 }
 

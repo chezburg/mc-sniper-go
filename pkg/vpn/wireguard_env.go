@@ -54,20 +54,29 @@ func (p *WireguardEnvProvider) Connect(country string) error {
 		return fmt.Errorf("failed to create wireguard dir: %v", err)
 	}
 
-	var wgConfig string
+var wgConfig string
 	if p.presetConf != "" {
 		wgConfig = p.presetConf
 	} else {
-		wgConfig = fmt.Sprintf(`[Interface]
-PrivateKey = %s
-Address = %s
+		interfaceConfig := fmt.Sprintf("PrivateKey = %s\n", p.privateKey)
+		if p.address != "" {
+			interfaceConfig += fmt.Sprintf("Address = %s\n", p.address)
+		}
 
-[Peer]
-PublicKey = %s
-Endpoint = %s
-AllowedIPs = 0.0.0.0/0, ::/0
+		peerConfig := ""
+		if p.publicKey != "" {
+			peerConfig += fmt.Sprintf("PublicKey = %s\n", p.publicKey)
+		}
+		if p.endpoint != "" {
+			peerConfig += fmt.Sprintf("Endpoint = %s\n", p.endpoint)
+		}
+		peerConfig += `AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25
-`, p.privateKey, p.address, p.publicKey, p.endpoint)
+`
+
+		wgConfig = fmt.Sprintf(`[Interface]
+%s[Peer]
+%s`, interfaceConfig, peerConfig)
 	}
 
 	if err := os.WriteFile(configPath, []byte(wgConfig), 0600); err != nil {
@@ -200,14 +209,23 @@ func extractIP(address string) string {
 }
 
 func GenerateWireguardConfig(privateKey, address, publicKey, endpoint string) string {
-	return fmt.Sprintf(`[Interface]
-PrivateKey = %s
-Address = %s
+	interfaceConfig := fmt.Sprintf("PrivateKey = %s\n", privateKey)
+	if address != "" {
+		interfaceConfig += fmt.Sprintf("Address = %s\n", address)
+	}
 
-[Peer]
-PublicKey = %s
-Endpoint = %s
-AllowedIPs = 0.0.0.0/0, ::/0
+	peerConfig := ""
+	if publicKey != "" {
+		peerConfig += fmt.Sprintf("PublicKey = %s\n", publicKey)
+	}
+	if endpoint != "" {
+		peerConfig += fmt.Sprintf("Endpoint = %s\n", endpoint)
+	}
+	peerConfig += `AllowedIPs = 0.0.0.0/0, ::/0
 PersistentKeepalive = 25
-`, privateKey, address, publicKey, endpoint)
+`
+
+	return fmt.Sprintf(`[Interface]
+%s[Peer]
+%s`, interfaceConfig, peerConfig)
 }
