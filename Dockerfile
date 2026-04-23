@@ -19,6 +19,7 @@ RUN apt-get update && \
         ca-certificates \
         curl \
         iptables \
+        procps \
         kmod && \
     rm -rf /var/lib/apt/lists/*
 
