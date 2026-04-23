@@ -83,17 +83,31 @@ func FetchDroptimes(proxies []string) ([]DropInfo, error) {
 	var html string
 	var err error
 
-	// Try direct first
-	html, err = curlFetch("https://3name.xyz/list", "")
-	
-	// If direct fails and we have proxies, try the first proxy
-	if err != nil && len(proxies) > 0 && proxies[0] != "" {
-		fmt.Printf("[*] Direct fetch failed, trying with proxy...\n")
-		html, err = curlFetch("https://3name.xyz/list", proxies[0])
+	for i := 1; i <= 5; i++ {
+		fmt.Printf("[*] Attempt %d to fetch droptimes...\n", i)
+		
+		// Try direct
+		html, err = curlFetch("https://3name.xyz/list", "")
+		
+		// If direct fails and we have proxies, try the first proxy
+		if err != nil && len(proxies) > 0 && proxies[0] != "" {
+			fmt.Printf("[*] Direct fetch failed, trying with proxy...\n")
+			html, err = curlFetch("https://3name.xyz/list", proxies[0])
+		}
+
+		if err == nil {
+			break
+		}
+
+		fmt.Printf("[!] Attempt %d failed: %v\n", i, err)
+		if i < 5 {
+			fmt.Println("[*] Waiting 10 seconds before next attempt...")
+			time.Sleep(10 * time.Second)
+		}
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch list: %w", err)
+		return nil, fmt.Errorf("failed to fetch list after 5 attempts: %w", err)
 	}
 
 	// Regex to find username and lower bound together, handles newlines
