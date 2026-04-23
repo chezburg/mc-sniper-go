@@ -104,7 +104,7 @@ func (p *WireguardEnvProvider) Connect(country string) error {
 		if p.endpoint != "" {
 			peerConfig += fmt.Sprintf("Endpoint = %s\n", p.endpoint)
 		}
-		peerConfig += `AllowedIPs = 0.0.0.0/0, ::/0
+		peerConfig += `AllowedIPs = 0.0.0.0/1, 128.0.0.0/1
 PersistentKeepalive = 25
 `
 
@@ -209,7 +209,7 @@ Address = %s
 [Peer]
 PublicKey = %s
 Endpoint = %s:51820
-AllowedIPs = 0.0.0.0/0, ::/0
+AllowedIPs = 0.0.0.0/1, 128.0.0.0/1
 PersistentKeepalive = 25
 `, p.privateKey, p.address, relay.Pubkey, relay.IPv4AddrIn)
 
@@ -404,7 +404,7 @@ func GenerateWireguardConfig(privateKey, address, publicKey, endpoint string) st
 	if endpoint != "" {
 		peerConfig += fmt.Sprintf("Endpoint = %s\n", endpoint)
 	}
-	peerConfig += `AllowedIPs = 0.0.0.0/0, ::/0
+	peerConfig += `AllowedIPs = 0.0.0.0/1, 128.0.0.0/1
 PersistentKeepalive = 25
 `
 
