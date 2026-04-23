@@ -4,3 +4,10 @@ mullvad/
 *.exe
 dist/
 .env
+
+# Dev auth testing
+cmd/authdev/
+ms.txt
+auth_test.log
+auth_debug_msa.log
+auth_debug_oauth.log

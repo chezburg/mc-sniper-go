@@ -158,20 +158,26 @@ cfg := config.Load()
 		}
 	}
 
-	err := rotator.Connect()
-	if err != nil {
-		log.Log("err", "failed to connect to VPN: %v", err)
-		rotator = nil
-		proxies = cfg.GetProxies()
-		log.Log("info", "falling back to proxies")
+	if rotator != nil {
+		err := rotator.Connect()
+		if err != nil {
+			log.Log("err", "failed to connect to VPN: %v", err)
+			rotator = nil
+			proxies = cfg.GetProxies()
+			log.Log("info", "falling back to proxies")
+		} else {
+			log.Log("info", "connected to VPN: %s", rotator.CurrentRegion())
+		}
 	} else {
-		log.Log("info", "connected to VPN: %s", rotator.CurrentRegion())
+		proxies = cfg.GetProxies()
+		if len(proxies) > 0 {
+			log.Log("info", "no VPN configured, using proxies")
+		} else {
+			log.Log("info", "no VPN or proxies configured")
+		}
 	}
 
-	gcLines := cfg.GetGCAccounts()
-	gpLines := cfg.GetGPAccounts()
-	msLines := cfg.GetMSAccounts()
-	accounts, err := getAccountsFromLines(gcLines, gpLines, msLines)
+	accounts, err := getAccounts("gc.txt", "gp.txt", "ms.txt")
 
 	if err != nil {
 		log.Log("err", "fatal: %v", err)

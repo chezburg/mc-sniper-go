@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/Kqzz/MCsniperGO/log"
@@ -12,11 +13,52 @@ import (
 )
 
 func getAccounts(giftCodePath string, gamepassPath string, microsoftPath string) ([]*mc.MCaccount, error) {
+	accounts, err := getAccountsFromEnv()
+	if err != nil {
+		return nil, err
+	}
+	
+	if len(accounts) > 0 {
+		return accounts, nil
+	}
+
 	giftCodeLines, _ := parser.ReadLines(giftCodePath)
 	gamepassLines, _ := parser.ReadLines(gamepassPath)
 	microsoftLines, _ := parser.ReadLines(microsoftPath)
 
 	return parseAccountsFromLines(giftCodeLines, gamepassLines, microsoftLines)
+}
+
+func getAccountsFromEnv() ([]*mc.MCaccount, error) {
+	var accounts []*mc.MCaccount
+
+	bearerToken := os.Getenv("MC_BEARER_TOKEN")
+	email := os.Getenv("MC_EMAIL")
+	password := os.Getenv("MC_PASSWORD")
+
+	if bearerToken != "" {
+		acc := &mc.MCaccount{
+			Email:   email,
+			Type:    mc.Ms,
+			Bearer:  bearerToken,
+		}
+		acc.DefaultFastHttpHandler()
+		accounts = append(accounts, acc)
+		log.Log("info", "Loaded account from MC_BEARER_TOKEN env var")
+	}
+
+	if email != "" && password != "" {
+		acc := &mc.MCaccount{
+			Email:    email,
+			Password: password,
+			Type:     mc.Ms,
+		}
+		acc.DefaultFastHttpHandler()
+		accounts = append(accounts, acc)
+		log.Log("info", "Loaded account from MC_EMAIL/MC_PASSWORD env vars")
+	}
+
+	return accounts, nil
 }
 
 func getAccountsFromLines(gcLines, gpLines, msLines []string) ([]*mc.MCaccount, error) {
@@ -95,6 +137,19 @@ func testAccounts(accounts []*mc.MCaccount) bool {
 
 		fmt.Printf("[DRY-TEST] Testing %s...", account.Email)
 
+		// If bearer token already exists, validate it instead of re-authenticating
+		if account.Bearer != "" {
+			err := account.LoadAccountInfo()
+			if err != nil {
+				fmt.Printf(" FAIL: %v\n", err)
+			} else {
+				fmt.Printf(" PASS (user: %s)\n", account.Username)
+				workingAccounts++
+			}
+			continue
+		}
+
+		// Otherwise try to authenticate
 		err := account.MicrosoftAuthenticate("")
 		if err != nil {
 			fmt.Printf(" FAIL: %v\n", err)

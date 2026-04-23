@@ -70,28 +70,3 @@ func ReadLines(filename string) ([]string, error) {
 
 	return lines, nil
 }
-
-func ReadLinesEnv(data string) ([]string, error) {
-	if data == "" {
-		return []string{}, fmt.Errorf("no data provided")
-	}
-
-	var lines []string
-	for _, line := range strings.Split(data, ",") {
-		line = strings.TrimSpace(line)
-		if line != "" {
-			lines = append(lines, line)
-		}
-	}
-
-	if len(lines) == 0 {
-		for _, line := range strings.Split(data, "\n") {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				lines = append(lines, line)
-			}
-		}
-	}
-
-	return lines, nil
-}
